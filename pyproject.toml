@@ -16,6 +16,7 @@ dependencies = [
     "tomli>=2.0; python_version < '3.11'",
     "tomli-w>=1.0",
     "duckdb>=0.10",
+    "pytz>=2024.1",
     "jsonschema>=4.0",
     "genson>=1.2",
     "opentelemetry-sdk>=1.25",
