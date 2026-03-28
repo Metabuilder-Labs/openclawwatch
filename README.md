@@ -8,10 +8,10 @@
 
 No cloud. No signup. No surprises.
 
+[![CI](https://github.com/Metabuilder-Labs/openclawwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/Metabuilder-Labs/openclawwatch/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/openclawwatch?color=3d8eff&labelColor=0d1117)](https://pypi.org/project/openclawwatch/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3d8eff?labelColor=0d1117)](https://pypi.org/project/openclawwatch/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3d8eff?labelColor=0d1117)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-223%20passing-22c55e?labelColor=0d1117)](tests/)
 [![OTel](https://img.shields.io/badge/OTel-GenAI%20SemConv-3d8eff?labelColor=0d1117)](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 
 ```
@@ -229,39 +229,32 @@ Prometheus metrics are always available at `:9464/metrics` when `ocw serve` is r
 
 ## Architecture
 
-```
-Your agent code
-    │
-    ├── Python SDK (@watch decorator + patch_* integrations)
-    │       │
-    │       └── OcwSpanExporter ──────────────────────┐
-    │                                                  │
-    └── TypeScript SDK (@ocw/sdk)                      │
-            │  OcwClient + SpanBuilder                 │
-            └── POST /api/v1/spans ────────────────────┤
-                                                       ▼
-                                              IngestPipeline
-                                         ┌────────────────────┐
-                                         │  Span sanitization │
-                                         │  Session continuity│
-                                         │  Attribute extract │
-                                         └────────┬───────────┘
-                                                  │
-                           ┌──────────────────────┼──────────────────────┐
-                           ▼                      ▼                      ▼
-                      CostEngine            AlertEngine           SchemaValidator
-                      (pricing.toml)        (13 types,            (JSON Schema +
-                                            6 channels)            genson infer)
-                           │                      │
-                           └──────────┬───────────┘
-                                      ▼
-                                   DuckDB
-                              (local, embedded)
-                                      │
-                          ┌───────────┼───────────┐
-                          ▼           ▼           ▼
-                       ocw CLI    REST API    Prometheus
-                                 :7391/docs   :9464/metrics
+```mermaid
+flowchart TD
+    Agent["Your agent code"]
+
+    Agent --> PythonSDK["Python SDK\n@watch + patch_* integrations"]
+    Agent --> TypeScriptSDK["TypeScript SDK\n@ocw/sdk"]
+
+    PythonSDK --> Exporter["OcwSpanExporter"]
+    TypeScriptSDK --> HTTP["POST /api/v1/spans"]
+
+    Exporter --> Ingest
+    HTTP --> Ingest
+
+    Ingest["IngestPipeline\nSanitization · Session continuity · Attribute extraction"]
+
+    Ingest --> Cost["CostEngine\npricing.toml"]
+    Ingest --> Alerts["AlertEngine\n13 types · 6 channels"]
+    Ingest --> Schema["SchemaValidator\nJSON Schema + genson infer"]
+
+    Cost --> DB["DuckDB\nlocal · embedded"]
+    Alerts --> DB
+    Schema --> DB
+
+    DB --> CLI["ocw CLI"]
+    DB --> API["REST API\n:7391/docs"]
+    DB --> Prom["Prometheus\n:9464/metrics"]
 ```
 
 Spans from Python land via the in-process OTel exporter. Spans from TypeScript (or any external process) arrive via HTTP. Both paths converge at `IngestPipeline`. Everything downstream is identical.
@@ -330,13 +323,13 @@ Those tools were built for LLM developers — tracing API calls, comparing promp
 
 | | `ocw` | LangSmith | Langfuse | Datadog LLM Obs |
 |---|---|---|---|---|
-| Real-time sensitive action alerts | ✓ | ✗ | ✗ | ✗ |
-| Behavioral drift detection | ✓ | ✗ | ✗ | ✗ |
-| Local-first, no cloud required | ✓ | ✗ | self-host only | ✗ |
-| OTel GenAI SemConv native | ✓ | partial | partial | partial |
-| NemoClaw sandbox events | ✓ | ✗ | ✗ | ✗ |
-| Works with any agent/framework | ✓ | LangChain-first | partial | ✗ |
-| Free, MIT licensed | ✓ | freemium | freemium | paid |
+| Real-time sensitive action alerts | ✅ | ❌ | ❌ | ❌ |
+| Behavioral drift detection | ✅ | ❌ | ❌ | ❌ |
+| Local-first, no cloud required | ✅ | ❌ | self-host only | ❌ |
+| OTel GenAI SemConv native | ✅ | partial | partial | partial |
+| NemoClaw sandbox events | ✅ | ❌ | ❌ | ❌ |
+| Works with any agent/framework | ✅ | LangChain-first | partial | ❌ |
+| Free, MIT licensed | ✅ | freemium | freemium | paid |
 
 ---
 
