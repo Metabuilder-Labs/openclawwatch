@@ -1,0 +1,41 @@
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Node (sdk-ts)
+sdk-ts/node_modules/
+sdk-ts/dist/
+
+# Config with secrets
+ocw.toml
+.ocw/
