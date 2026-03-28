@@ -1,0 +1,63 @@
+import click
+from ocw.core.config import load_config
+from ocw.core.db import open_db
+
+
+@click.group()
+@click.option("--config", "config_path", default=None, envvar="OCW_CONFIG",
+              help="Config file path (default: auto-discover)")
+@click.option("--json", "output_json", is_flag=True,
+              help="Output machine-readable JSON")
+@click.option("--no-color", is_flag=True)
+@click.option("--db", "db_path", default=None, help="Database path override")
+@click.option("--agent", default=None, help="Filter to specific agent_id")
+@click.option("-v", "--verbose", is_flag=True)
+@click.pass_context
+def cli(ctx: click.Context, config_path: str | None, output_json: bool,
+        no_color: bool, db_path: str | None, agent: str | None,
+        verbose: bool) -> None:
+    """ocw - local-first observability for AI agents."""
+    ctx.ensure_object(dict)
+    config = load_config(config_path)
+    if db_path:
+        config.storage.path = db_path
+    db = open_db(config.storage)
+    ctx.obj["config"] = config
+    ctx.obj["db"] = db
+    ctx.obj["output_json"] = output_json
+    ctx.obj["no_color"] = no_color
+    ctx.obj["agent"] = agent
+    ctx.obj["verbose"] = verbose
+    if no_color:
+        from rich import reconfigure
+        reconfigure(no_color=True)
+
+
+# Register all subcommands
+from ocw.cli.cmd_onboard import cmd_onboard  # noqa: E402
+from ocw.cli.cmd_status import cmd_status  # noqa: E402
+from ocw.cli.cmd_traces import cmd_traces, cmd_trace  # noqa: E402
+from ocw.cli.cmd_cost import cmd_cost  # noqa: E402
+from ocw.cli.cmd_alerts import cmd_alerts  # noqa: E402
+from ocw.cli.cmd_tools import cmd_tools  # noqa: E402
+from ocw.cli.cmd_export import cmd_export  # noqa: E402
+from ocw.cli.cmd_serve import cmd_serve  # noqa: E402
+from ocw.cli.cmd_doctor import cmd_doctor  # noqa: E402
+
+cli.add_command(cmd_onboard, name="onboard")
+cli.add_command(cmd_status, name="status")
+cli.add_command(cmd_traces, name="traces")
+cli.add_command(cmd_trace, name="trace")
+cli.add_command(cmd_cost, name="cost")
+cli.add_command(cmd_alerts, name="alerts")
+cli.add_command(cmd_tools, name="tools")
+cli.add_command(cmd_export, name="export")
+cli.add_command(cmd_serve, name="serve")
+cli.add_command(cmd_doctor, name="doctor")
+
+# cmd_drift is provided by task 05 — register if available
+try:
+    from ocw.cli.cmd_drift import cmd_drift  # noqa: E402
+    cli.add_command(cmd_drift, name="drift")
+except ImportError:
+    pass

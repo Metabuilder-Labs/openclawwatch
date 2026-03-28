@@ -1,0 +1,45 @@
+from __future__ import annotations
+
+import click
+
+from ocw.utils.formatting import console
+
+
+@click.command("serve")
+@click.option("--host", default=None, help="Bind host (default: from config)")
+@click.option("--port", default=None, type=int, help="Bind port (default: from config)")
+@click.option("--reload", is_flag=True, help="Enable auto-reload for development")
+@click.pass_context
+def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
+              reload: bool) -> None:
+    """Start the ocw API server."""
+    config = ctx.obj["config"]
+    bind_host = host or config.api.host
+    bind_port = port or config.api.port
+
+    # Schedule retention cleanup
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from ocw.core.retention import run_retention_cleanup
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        run_retention_cleanup,
+        "cron",
+        hour=0,
+        minute=0,
+        args=[ctx.obj["db"], config.storage],
+    )
+    scheduler.start()
+
+    console.print(f"[bold]ocw serve[/bold] starting on http://{bind_host}:{bind_port}")
+    console.print(f"  API docs:    http://{bind_host}:{bind_port}/docs")
+    if config.export.prometheus.enabled:
+        console.print(f"  Metrics:     http://{bind_host}:{config.export.prometheus.port}"
+                      f"{config.export.prometheus.path}")
+    console.print()
+
+    import uvicorn
+    from ocw.api.app import create_app
+
+    app = create_app(config, ctx.obj["db"])
+    uvicorn.run(app, host=bind_host, port=bind_port, reload=reload)
