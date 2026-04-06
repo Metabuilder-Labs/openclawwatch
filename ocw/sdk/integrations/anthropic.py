@@ -71,11 +71,20 @@ class AnthropicIntegration:
             except TypeError as exc:
                 if "api_key" in str(exc) or "auth" in str(exc).lower():
                     span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
-                    raise TypeError(
-                        "Anthropic API key not set. "
-                        "Run: export ANTHROPIC_API_KEY='sk-ant-...'\n"
-                        "Or pass it directly: anthropic.Anthropic(api_key='...')"
-                    ) from exc
+                    import sys
+                    print(
+                        "\n\033[1;31mError: Anthropic API key not found.\033[0m\n"
+                        "\n"
+                        "  Set it in your environment:\n"
+                        "\n"
+                        "    export ANTHROPIC_API_KEY='sk-ant-...'\n"
+                        "\n"
+                        "  Or pass it directly:\n"
+                        "\n"
+                        "    anthropic.Anthropic(api_key='...')\n",
+                        file=sys.stderr,
+                    )
+                    raise SystemExit(1)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
                 raise
             except Exception as exc:
