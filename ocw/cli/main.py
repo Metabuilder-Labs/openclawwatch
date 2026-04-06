@@ -4,6 +4,7 @@ from ocw.core.db import open_db
 
 
 @click.group()
+@click.version_option(package_name="openclawwatch")
 @click.option("--config", "config_path", default=None, envvar="OCW_CONFIG",
               help="Config file path (default: auto-discover)")
 @click.option("--json", "output_json", is_flag=True,
