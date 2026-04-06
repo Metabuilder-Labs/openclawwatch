@@ -48,7 +48,7 @@ openclawwatch/
 │   ├── api/                FastAPI local REST API
 │   ├── sdk/                Python instrumentation SDK
 │   └── utils/              Formatting, time parsing, ID generation
-├── sdk-ts/                 TypeScript SDK (@ocw/sdk)
+├── sdk-ts/                 TypeScript SDK (@openclawwatch/sdk)
 ├── pricing/                models.toml — community-maintained model pricing (USD per million tokens)
 └── tests/
     ├── factories.py        Span factory — use this in ALL tests

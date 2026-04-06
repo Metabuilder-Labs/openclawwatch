@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - CLI commands: `onboard`, `status`, `traces`, `cost`, `alerts`, `drift`, `tools`, `export`, `serve`, `doctor`
 - REST API with OTLP JSON ingest endpoint and Prometheus metrics
 - Python SDK: `@watch()` decorator, `patch_anthropic()`, `patch_openai()`, and 9 more provider/framework integrations
-- TypeScript SDK (`@ocw/sdk`): `OcwClient` and `SpanBuilder` for Node.js agents
+- TypeScript SDK (`@openclawwatch/sdk`): `OcwClient` and `SpanBuilder` for Node.js agents
 - Auto-bootstrap: TracerProvider initializes lazily on first `@watch()` or `patch_*()` call
 - Community-maintained model pricing table (`pricing/models.toml`)
 - Session continuity via `conversation_id` across process restarts

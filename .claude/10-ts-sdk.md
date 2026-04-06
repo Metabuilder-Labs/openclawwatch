@@ -7,7 +7,7 @@
 
 ## What this task covers
 
-The `@ocw/sdk` TypeScript package under `sdk-ts/`. This is a completely standalone
+The `@openclawwatch/sdk` TypeScript package under `sdk-ts/`. This is a completely standalone
 package — it does not share code with the Python package. It communicates with the
 Python backend via HTTP only.
 
@@ -19,7 +19,7 @@ Python backend via HTTP only.
 
 ```json
 {
-  "name": "@ocw/sdk",
+  "name": "@openclawwatch/sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for OpenClawWatch",
   "main": "./dist/index.js",
@@ -295,7 +295,7 @@ export { patchOpenAI }                           from "./integrations/openai.js"
 ## Usage example
 
 ```typescript
-import { watch, recordLlmCall, patchOpenAI, HttpTransport } from "@ocw/sdk";
+import { watch, recordLlmCall, patchOpenAI, HttpTransport } from "@openclawwatch/sdk";
 
 const transport = new HttpTransport({
   baseUrl:      "http://127.0.0.1:7391",

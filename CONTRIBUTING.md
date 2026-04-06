@@ -42,7 +42,7 @@ ocw/api/               FastAPI routes
 ocw/sdk/               @watch() decorator and provider/framework patches
 ocw/otel/              OTel TracerProvider and span exporter wiring
 ocw/utils/             Formatting, time parsing, ID generation
-sdk-ts/src/            TypeScript SDK (@ocw/sdk)
+sdk-ts/src/            TypeScript SDK (@openclawwatch/sdk)
 pricing/models.toml    Community-maintained model pricing — PRs welcome here
 tests/factories.py     Span factory — use this in all synthetic tests, never
                        construct NormalizedSpan directly
