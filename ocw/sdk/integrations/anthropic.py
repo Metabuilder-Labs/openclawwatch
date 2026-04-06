@@ -68,6 +68,16 @@ class AnthropicIntegration:
                         span.set_attribute(GenAIAttributes.CACHE_CREATE_TOKENS, cache_create)
                 span.set_status(trace.Status(trace.StatusCode.OK))
                 return response
+            except TypeError as exc:
+                if "api_key" in str(exc) or "auth" in str(exc).lower():
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                    raise TypeError(
+                        "Anthropic API key not set. "
+                        "Run: export ANTHROPIC_API_KEY='sk-ant-...'\n"
+                        "Or pass it directly: anthropic.Anthropic(api_key='...')"
+                    ) from exc
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                raise
             except Exception as exc:
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
                 raise
