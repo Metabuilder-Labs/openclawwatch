@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ocw.core.db import StorageBackend
     from ocw.core.cost import CostEngine
     from ocw.core.alerts import AlertEngine
+    from ocw.core.drift import DriftDetector
     from ocw.core.schema_validator import SchemaValidator
 
 logger = logging.getLogger("ocw.ingest")
@@ -103,6 +104,7 @@ class IngestPipeline:
         cost_engine: CostEngine | None = None,
         alert_engine: AlertEngine | None = None,
         schema_validator: SchemaValidator | None = None,
+        drift_detector: DriftDetector | None = None,
     ):
         self.db = db
         self.config = config
@@ -110,6 +112,7 @@ class IngestPipeline:
         self.cost_engine = cost_engine
         self.alert_engine = alert_engine
         self.schema_validator = schema_validator
+        self.drift_detector = drift_detector
 
     def process(self, span: NormalizedSpan) -> None:
         """
@@ -136,6 +139,16 @@ class IngestPipeline:
         # 5. Session upsert (update running totals)
         session = self._build_or_update_session(span)
         self.db.upsert_session(session)
+
+        # 5b. Complete session when invoke_agent span ends
+        if span.name == GenAIAttributes.SPAN_INVOKE_AGENT and span.end_time:
+            session.status = "completed"
+            self.db.upsert_session(session)
+            if self.drift_detector and span.agent_id:
+                try:
+                    self.drift_detector.on_session_end(span.agent_id, session)
+                except Exception as exc:
+                    logger.warning("DriftDetector hook failed: %s", exc)
 
         # 6. Post-ingest hooks (never let hook errors kill the pipeline)
         self._run_hooks(span)
