@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-04-06
+
+### Fixed
+- `ocw export` returning empty output due to corrupted DuckDB span indexes
+- `ocw status` showing `?` instead of `●` for completed sessions
+- `ocw status` showing `$0.000000` cost due to `date.today()` vs UTC date mismatch
+- `ocw cost` showing spurious `$0.000000` row from session-level spans with no model
+
+### Added
+- `ocw trace` prefix matching — short trace IDs now resolve like git short hashes
+- PyPI and npm publish workflows (`publish-pypi.yml`, `publish-npm.yml`)
+- PyPI metadata: README as long description, classifiers, project URLs
+- `CODEOWNERS` requiring review from @anilmurty
+
+### Changed
+- Renamed npm package from `@ocw/sdk` to `@openclawwatch/sdk`
+- Consolidated `AGENTS.md` to point at `CLAUDE.md` as source of truth
+
 ## [0.1.0] - 2026-04-05
 
 ### Added
