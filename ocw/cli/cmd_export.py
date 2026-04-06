@@ -54,7 +54,11 @@ def cmd_export(ctx: click.Context, agent: str | None, since: str,
 
 def _export_json(db: object, traces: list) -> str:
     lines = []
+    seen_traces: set[str] = set()
     for t in traces:
+        if t.trace_id in seen_traces:
+            continue
+        seen_traces.add(t.trace_id)
         spans = db.get_trace_spans(t.trace_id)
         for s in spans:
             lines.append(json.dumps({
@@ -84,7 +88,11 @@ def _export_csv(db: object, traces: list) -> str:
         "span_id", "trace_id", "agent_id", "name", "start_time",
         "duration_ms", "cost_usd", "input_tokens", "output_tokens", "status_code",
     ])
+    seen_traces: set[str] = set()
     for t in traces:
+        if t.trace_id in seen_traces:
+            continue
+        seen_traces.add(t.trace_id)
         spans = db.get_trace_spans(t.trace_id)
         for s in spans:
             writer.writerow([
@@ -108,7 +116,11 @@ def _export_otlp(ctx: click.Context, db: object, traces: list) -> None:
     headers = dict(config.export.otlp.headers)
     headers.setdefault("Content-Type", "application/json")
 
+    seen_traces: set[str] = set()
     for t in traces:
+        if t.trace_id in seen_traces:
+            continue
+        seen_traces.add(t.trace_id)
         spans = db.get_trace_spans(t.trace_id)
         payload = {
             "resourceSpans": [{
@@ -143,7 +155,11 @@ def _export_otlp(ctx: click.Context, db: object, traces: list) -> None:
 
 def _export_openevals(db: object, traces: list) -> str:
     results = []
+    seen_traces: set[str] = set()
     for t in traces:
+        if t.trace_id in seen_traces:
+            continue
+        seen_traces.add(t.trace_id)
         spans = db.get_trace_spans(t.trace_id)
         messages = []
         for s in spans:
