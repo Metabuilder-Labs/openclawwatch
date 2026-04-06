@@ -1,0 +1,35 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-npm:
+    if: startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        working-directory: sdk-ts
+        run: npm install
+
+      - name: Run tests
+        working-directory: sdk-ts
+        run: npm test
+
+      - name: Build
+        working-directory: sdk-ts
+        run: npm run build
+
+      - name: Publish
+        working-directory: sdk-ts
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

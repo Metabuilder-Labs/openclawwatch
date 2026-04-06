@@ -1,5 +1,5 @@
 {
-  "name": "@ocw/sdk",
+  "name": "@openclawwatch/sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for OpenClawWatch — local-first observability for AI agents",
   "main": "dist/index.js",
