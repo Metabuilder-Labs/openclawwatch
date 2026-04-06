@@ -26,11 +26,9 @@ jobs:
 
       - name: Lint
         run: ruff check ocw/
-        continue-on-error: true
 
       - name: Type check
         run: mypy ocw/
-        continue-on-error: true
 
       - name: Run tests
         run: pytest tests/unit/ tests/synthetic/ tests/agents/ tests/integration/

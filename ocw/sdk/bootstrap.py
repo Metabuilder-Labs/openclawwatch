@@ -10,7 +10,6 @@ import atexit
 import logging
 import threading
 
-from opentelemetry import trace
 
 logger = logging.getLogger("ocw.sdk")
 

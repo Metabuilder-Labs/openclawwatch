@@ -50,7 +50,6 @@ openclawwatch/
 │   └── utils/              Formatting, time parsing, ID generation
 ├── sdk-ts/                 TypeScript SDK (@ocw/sdk)
 ├── pricing/                models.toml — community-maintained model pricing (USD per million tokens)
-├── schemas/                (reserved for config.schema.json — not yet created)
 └── tests/
     ├── factories.py        Span factory — use this in ALL tests
     ├── unit/               Pure logic tests, no I/O
@@ -169,7 +168,7 @@ GitHub Actions workflow at `.github/workflows/ci.yml` runs on push/PR to `main`:
 - **`test`** job: Python 3.10/3.11/3.12 matrix — `ruff check` and `mypy` (continue-on-error), then `pytest tests/unit/ tests/synthetic/ tests/agents/ tests/integration/` (blocking)
 - **`test-ts`** job: Node 20 — `npm install && npm test` in `sdk-ts/`
 
-Lint and type check are non-blocking (`continue-on-error: true`) due to pre-existing violations across modules. Tests are the blocking gate.
+All steps are blocking — lint, typecheck, and tests must pass for CI to go green.
 
 ## Packaging
 

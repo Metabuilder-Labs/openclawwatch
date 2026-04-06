@@ -8,7 +8,6 @@ from ocw.core.models import NormalizedSpan, SessionRecord, SpanStatus
 from ocw.core.config import OcwConfig, SecurityConfig, CaptureConfig
 from ocw.otel.semconv import GenAIAttributes
 from ocw.utils.ids import new_uuid
-from ocw.utils.time_parse import utcnow
 
 if TYPE_CHECKING:
     from ocw.core.db import StorageBackend

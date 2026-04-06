@@ -1,7 +1,6 @@
 """GET /api/v1/traces — trace listing and detail."""
 from __future__ import annotations
 
-from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Request
 

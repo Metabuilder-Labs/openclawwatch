@@ -15,7 +15,6 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-from opentelemetry import trace
 
 from ocw.core.models import NormalizedSpan, SpanKind, SpanStatus
 from ocw.otel.semconv import OcwAttributes

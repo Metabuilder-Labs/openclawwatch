@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -111,7 +111,7 @@ class AlertEngine:
         External entry point for other modules (SchemaValidator, DriftDetector)
         to fire alerts they detect.
         """
-        from ocw.core.models import NormalizedSpan, SessionRecord
+        from ocw.core.models import NormalizedSpan
 
         if severity is None:
             severity = Severity.WARNING

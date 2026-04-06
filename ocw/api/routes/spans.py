@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from ocw.core.ingest import SpanRejectedError
 from ocw.core.models import NormalizedSpan, SpanKind, SpanStatus
-from ocw.otel.semconv import GenAIAttributes, OcwAttributes
+from ocw.otel.semconv import GenAIAttributes
 from ocw.utils.ids import new_span_id
 
 logger = logging.getLogger(__name__)

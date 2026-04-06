@@ -9,17 +9,15 @@ from __future__ import annotations
 
 import functools
 import logging
-from datetime import timedelta
 from typing import Callable, TYPE_CHECKING
 
 from opentelemetry import trace
 
 from ocw.otel.semconv import GenAIAttributes
 from ocw.utils.ids import new_uuid
-from ocw.utils.time_parse import utcnow
 
 if TYPE_CHECKING:
-    from ocw.core.config import OcwConfig
+    pass
 
 logger = logging.getLogger(__name__)
 

@@ -40,6 +40,11 @@ def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
 
     import uvicorn
     from ocw.api.app import create_app
+    from ocw.core.ingest import IngestPipeline
+    from ocw.core.cost import CostEngine
 
-    app = create_app(config, ctx.obj["db"])
+    db = ctx.obj["db"]
+    cost_engine = CostEngine(db)
+    pipeline = IngestPipeline(db, config, cost_engine=cost_engine)
+    app = create_app(config, db, pipeline)
     uvicorn.run(app, host=bind_host, port=bind_port, reload=reload)

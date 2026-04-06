@@ -33,11 +33,7 @@ async def prometheus_metrics(request: Request) -> PlainTextResponse:
         lines.append(f'ocw_tokens_total{{agent_id="{_escape(agent)}",type="input"}} {row.input_tokens}')
         lines.append(f'ocw_tokens_total{{agent_id="{_escape(agent)}",type="output"}} {row.output_tokens}')
 
-    # -- Spans per agent (using cost summary span count as proxy) --
-    _add_header(lines, "ocw_spans_total", "counter", "Total spans ingested")
-    span_rows = db.get_cost_summary(CostFilters(group_by="agent"))
-    # get_cost_summary doesn't give span count, use tool_calls as a proxy
-    # For a more accurate count we'd need a dedicated query, but tool_calls gives tool span count
+    # -- Tool calls per agent --
     tool_rows = db.get_tool_calls(None, None, None)
     _add_header(lines, "ocw_tool_calls_total", "counter", "Total tool calls per agent and tool")
     for row in tool_rows:
