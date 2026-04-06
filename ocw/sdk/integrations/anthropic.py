@@ -49,6 +49,15 @@ class AnthropicIntegration:
                 GenAIAttributes.REQUEST_MODEL,
                 kwargs.get("model", "unknown"),
             )
+            # Inherit agent_id from parent span (set by @watch())
+            parent_span = trace.get_current_span()
+            if parent_span and parent_span.is_recording():
+                agent_id = parent_span.attributes.get(GenAIAttributes.AGENT_ID)
+                if agent_id:
+                    span.set_attribute(GenAIAttributes.AGENT_ID, agent_id)
+                conv_id = parent_span.attributes.get(GenAIAttributes.CONVERSATION_ID)
+                if conv_id:
+                    span.set_attribute(GenAIAttributes.CONVERSATION_ID, conv_id)
             try:
                 response = integration._original_create(self_msg, *args, **kwargs)
                 if hasattr(response, "usage"):
@@ -104,6 +113,14 @@ class AnthropicIntegration:
                     GenAIAttributes.REQUEST_MODEL,
                     kwargs.get("model", "unknown"),
                 )
+                parent_span = trace.get_current_span()
+                if parent_span and parent_span.is_recording():
+                    agent_id = parent_span.attributes.get(GenAIAttributes.AGENT_ID)
+                    if agent_id:
+                        span.set_attribute(GenAIAttributes.AGENT_ID, agent_id)
+                    conv_id = parent_span.attributes.get(GenAIAttributes.CONVERSATION_ID)
+                    if conv_id:
+                        span.set_attribute(GenAIAttributes.CONVERSATION_ID, conv_id)
                 try:
                     stream = integration._original_stream(self_msg, *args, **kwargs)
                     span.set_status(trace.Status(trace.StatusCode.OK))

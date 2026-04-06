@@ -136,6 +136,14 @@ def record_llm_call(
     @watch() / AgentSession).
     """
     span = _tracer.start_span(GenAIAttributes.SPAN_LLM_CALL)
+    parent_span = trace.get_current_span()
+    if parent_span and parent_span.is_recording():
+        agent_id = parent_span.attributes.get(GenAIAttributes.AGENT_ID)
+        if agent_id:
+            span.set_attribute(GenAIAttributes.AGENT_ID, agent_id)
+        conv_id = parent_span.attributes.get(GenAIAttributes.CONVERSATION_ID)
+        if conv_id:
+            span.set_attribute(GenAIAttributes.CONVERSATION_ID, conv_id)
     span.set_attribute(GenAIAttributes.REQUEST_MODEL, model)
     span.set_attribute(GenAIAttributes.PROVIDER_NAME, provider)
     span.set_attribute(GenAIAttributes.INPUT_TOKENS, input_tokens)
@@ -170,6 +178,14 @@ def record_tool_call(
     Creates a child span under the current active span.
     """
     span = _tracer.start_span(GenAIAttributes.SPAN_TOOL_CALL)
+    parent_span = trace.get_current_span()
+    if parent_span and parent_span.is_recording():
+        agent_id = parent_span.attributes.get(GenAIAttributes.AGENT_ID)
+        if agent_id:
+            span.set_attribute(GenAIAttributes.AGENT_ID, agent_id)
+        conv_id = parent_span.attributes.get(GenAIAttributes.CONVERSATION_ID)
+        if conv_id:
+            span.set_attribute(GenAIAttributes.CONVERSATION_ID, conv_id)
     span.set_attribute(GenAIAttributes.TOOL_NAME, tool_name)
     if tool_input is not None:
         import json
