@@ -147,10 +147,10 @@ from ocw.sdk.integrations.nemoclaw          import watch_nemoclaw         # Nemo
 | Pydantic AI | Built-in |
 | Semantic Kernel | Built-in |
 
-**TypeScript / Node.js** — `@ocw/sdk` provides `OcwClient` and `SpanBuilder` for sending spans to `ocw serve` from any TypeScript agent:
+**TypeScript / Node.js** — `@openclawwatch/sdk` provides `OcwClient` and `SpanBuilder` for sending spans to `ocw serve` from any TypeScript agent:
 
 ```typescript
-import { OcwClient, SpanBuilder } from "@ocw/sdk";
+import { OcwClient, SpanBuilder } from "@openclawwatch/sdk";
 
 const client = new OcwClient({
   baseUrl:      "http://127.0.0.1:7391",
@@ -234,7 +234,7 @@ flowchart TD
     Agent["Your agent code"]
 
     Agent --> PythonSDK["Python SDK\n@watch + patch_* integrations"]
-    Agent --> TypeScriptSDK["TypeScript SDK\n@ocw/sdk"]
+    Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
 
     PythonSDK --> Exporter["OcwSpanExporter"]
     TypeScriptSDK --> HTTP["POST /api/v1/spans"]
@@ -368,7 +368,7 @@ PRs welcome. If you're adding a framework integration, open an issue first so we
 
 <div align="center">
 
-**[opencla.watch](https://opencla.watch)** · [PyPI](https://pypi.org/project/openclawwatch/) · [npm](https://www.npmjs.com/package/@ocw/sdk)
+**[opencla.watch](https://opencla.watch)** · [PyPI](https://pypi.org/project/openclawwatch/) · [npm](https://www.npmjs.com/package/@openclawwatch/sdk)
 
 MIT License · Built by [Metabuilder Labs](https://github.com/Metabuilder-Labs)
 

@@ -21,4 +21,4 @@ GitHub Actions workflows for publishing releases to PyPI and npm.
 
 ## Package name change
 
-`sdk-ts/package.json` name changed from `@ocw/sdk` to `@openclawwatch/sdk`.
+`sdk-ts/package.json` name changed from `@openclawwatch/sdk` to `@openclawwatch/sdk`.
