@@ -160,11 +160,6 @@ CREATE TABLE IF NOT EXISTS schema_validations (
     errors          JSON DEFAULT '[]'
 );
 
-CREATE INDEX IF NOT EXISTS idx_spans_trace_id     ON spans(trace_id);
-CREATE INDEX IF NOT EXISTS idx_spans_agent_id     ON spans(agent_id);
-CREATE INDEX IF NOT EXISTS idx_spans_start_time   ON spans(start_time);
-CREATE INDEX IF NOT EXISTS idx_spans_tool_name    ON spans(tool_name);
-CREATE INDEX IF NOT EXISTS idx_spans_conv_id      ON spans(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_id  ON sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_conv_id   ON sessions(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_agent_id    ON alerts(agent_id);
@@ -173,6 +168,13 @@ CREATE INDEX IF NOT EXISTS idx_alerts_fired_at    ON alerts(fired_at);
 
 MIGRATIONS: list[tuple[int, str]] = [
     (1, INITIAL_SCHEMA_SQL),
+    (2, (
+        "DROP INDEX IF EXISTS idx_spans_trace_id;\n"
+        "DROP INDEX IF EXISTS idx_spans_agent_id;\n"
+        "DROP INDEX IF EXISTS idx_spans_start_time;\n"
+        "DROP INDEX IF EXISTS idx_spans_tool_name;\n"
+        "DROP INDEX IF EXISTS idx_spans_conv_id"
+    )),
 ]
 
 
@@ -462,7 +464,7 @@ class DuckDBBackend:
         }
         group_expr = group_col_map.get(filters.group_by, "CAST(start_time AS DATE)")
 
-        clauses: list[str] = []
+        clauses: list[str] = ["model IS NOT NULL"]
         params: list[object] = []
         idx = 1
         if filters.agent_id:
@@ -477,7 +479,7 @@ class DuckDBBackend:
             clauses.append(f"start_time <= ${idx}")
             params.append(filters.until)
             idx += 1
-        where = " AND ".join(clauses) if clauses else "1=1"
+        where = " AND ".join(clauses)
 
         sql = (
             f"SELECT {group_expr} AS grp, agent_id, model, "

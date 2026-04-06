@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-from datetime import date
 
 import click
 
 from ocw.core.models import AlertFilters
 from ocw.utils.formatting import console, format_cost, format_tokens, status_icon
+from ocw.utils.time_parse import utcnow
 
 
 @click.command("status")
@@ -56,7 +56,7 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
         elif sessions:
             session = sessions[0]
 
-        today_cost = db.get_daily_cost(aid, date.today())
+        today_cost = db.get_daily_cost(aid, utcnow().date())
 
         # Budget from config
         config = ctx.obj["config"]

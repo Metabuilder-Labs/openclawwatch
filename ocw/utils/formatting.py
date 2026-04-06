@@ -11,9 +11,13 @@ def severity_colour(severity: str) -> str:
 
 
 def status_icon(status: str) -> str:
-    return {"ok": "\u2713", "error": "\u2717", "active": "\u25cf", "idle": "\u25cb"}.get(
-        status, "?"
-    )
+    return {
+        "ok": "\u2713",
+        "error": "\u2717",
+        "active": "\u25cf",
+        "idle": "\u25cb",
+        "completed": "\u25cf",
+    }.get(status, "?")
 
 
 def format_cost(usd: float) -> str:
