@@ -148,5 +148,7 @@ class _StreamWrapper:
 
 def patch_anthropic() -> None:
     """Convenience function. Instantiates and installs AnthropicIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = AnthropicIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

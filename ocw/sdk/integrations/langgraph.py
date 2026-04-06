@@ -95,5 +95,7 @@ class LangGraphIntegration:
 
 def patch_langgraph() -> None:
     """Convenience function. Instantiates and installs LangGraphIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = LangGraphIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

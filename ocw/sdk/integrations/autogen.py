@@ -91,5 +91,7 @@ class AutoGenIntegration:
 
 def patch_autogen() -> None:
     """Convenience function. Instantiates and installs AutoGenIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = AutoGenIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

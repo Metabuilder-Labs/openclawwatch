@@ -125,5 +125,7 @@ class GeminiIntegration:
 
 def patch_gemini() -> None:
     """Convenience function. Instantiates and installs GeminiIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = GeminiIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

@@ -36,6 +36,8 @@ htmlcov/
 sdk-ts/node_modules/
 sdk-ts/dist/
 
-# Config with secrets
+# Secrets and env files
+.env
+.env.*
 ocw.toml
 .ocw/

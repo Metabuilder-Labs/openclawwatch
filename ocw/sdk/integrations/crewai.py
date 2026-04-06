@@ -90,5 +90,7 @@ class CrewAIIntegration:
 
 def patch_crewai() -> None:
     """Convenience function. Instantiates and installs CrewAIIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = CrewAIIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

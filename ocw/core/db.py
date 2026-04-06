@@ -630,7 +630,7 @@ class DuckDBBackend:
     def get_daily_cost(self, agent_id: str, date: date) -> float:
         result = self.conn.execute(
             "SELECT COALESCE(SUM(cost_usd), 0.0) FROM spans "
-            "WHERE agent_id = $1 AND CAST(start_time AS DATE) = $2",
+            "WHERE agent_id = $1 AND CAST(start_time AT TIME ZONE 'UTC' AS DATE) = $2",
             [agent_id, date],
         ).fetchone()
         return float(result[0]) if result else 0.0

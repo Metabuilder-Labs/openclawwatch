@@ -125,6 +125,8 @@ def patch_openai(base_url: str | None = None) -> None:
     Also works for OpenAI-compatible providers (Groq, Together, Fireworks, xAI,
     Azure OpenAI) — pass the provider's base_url and set provider name from it.
     """
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     provider = "openai"
     if base_url:
         # Infer provider name from base_url domain

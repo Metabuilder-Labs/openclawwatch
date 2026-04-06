@@ -97,5 +97,7 @@ def _extract_bedrock_usage(response: dict, span) -> None:
 
 def patch_bedrock() -> None:
     """Convenience function. Instantiates and installs BedrockIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = BedrockIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

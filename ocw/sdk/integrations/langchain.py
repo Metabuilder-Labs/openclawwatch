@@ -150,5 +150,7 @@ class LangChainIntegration:
 
 def patch_langchain() -> None:
     """Convenience function. Instantiates and installs LangChainIntegration."""
+    from ocw.sdk.bootstrap import ensure_initialised
+    ensure_initialised()
     integration = LangChainIntegration()
     integration.install(trace.get_tracer("ocw.sdk"))

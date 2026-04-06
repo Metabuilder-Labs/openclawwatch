@@ -48,6 +48,8 @@ def watch(
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            from ocw.sdk.bootstrap import ensure_initialised
+            ensure_initialised()
             try:
                 with AgentSession(
                     agent_id=agent_id,
