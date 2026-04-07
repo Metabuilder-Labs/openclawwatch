@@ -5,7 +5,6 @@ queries through the REST API.
 """
 from __future__ import annotations
 
-import json
 from datetime import date, datetime
 
 import httpx
