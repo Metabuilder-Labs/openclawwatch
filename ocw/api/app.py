@@ -1,10 +1,12 @@
 """FastAPI application factory. Called by `ocw serve`."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from ocw.api.middleware import IngestAuthMiddleware
 from ocw.core.config import OcwConfig
@@ -12,6 +14,8 @@ from ocw.core.config import OcwConfig
 if TYPE_CHECKING:
     from ocw.core.db import StorageBackend
     from ocw.core.ingest import IngestPipeline
+
+_UI_DIR = Path(__file__).resolve().parent.parent / "ui"
 
 
 def create_app(
@@ -35,7 +39,7 @@ def create_app(
     # CORS — local only by default
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost", "http://127.0.0.1"],
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
@@ -56,6 +60,7 @@ def create_app(
     from ocw.api.routes.alerts import router as alerts_router
     from ocw.api.routes.drift import router as drift_router
     from ocw.api.routes.metrics import router as metrics_router
+    from ocw.api.routes.status import router as status_router
 
     app.include_router(spans_router, prefix="/api/v1")
     app.include_router(traces_router, prefix="/api/v1")
@@ -63,6 +68,30 @@ def create_app(
     app.include_router(tools_router, prefix="/api/v1")
     app.include_router(alerts_router, prefix="/api/v1")
     app.include_router(drift_router, prefix="/api/v1")
+    app.include_router(status_router, prefix="/api/v1")
     app.include_router(metrics_router)  # /metrics — no prefix
+
+    # --- Web UI ---
+    _index_html = ""
+    index_path = _UI_DIR / "index.html"
+    if index_path.exists():
+        _index_html = index_path.read_text()
+
+    def _serve_ui() -> HTMLResponse:
+        html = _index_html
+        if config.api.auth.enabled and config.api.auth.api_key:
+            html = html.replace(
+                "</head>",
+                f'<meta name="ocw-api-key" content="{config.api.auth.api_key}">\n</head>',
+            )
+        return HTMLResponse(html)
+
+    @app.get("/", include_in_schema=False)
+    async def ui_root():
+        return _serve_ui()
+
+    @app.get("/ui/{path:path}", include_in_schema=False)
+    async def ui_catchall(path: str):
+        return _serve_ui()
 
     return app

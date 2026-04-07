@@ -1,23 +1,17 @@
 """GET /api/v1/drift — drift baseline and latest session comparison."""
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
 
 from ocw.api.deps import require_api_key
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
-@router.get("/drift", response_model=None)
-async def get_drift(request: Request, agent_id: str | None = None):
-    db = request.app.state.db
-    if not agent_id:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "agent_id query parameter is required"},
-        )
-
+def _build_agent_drift(db: Any, agent_id: str) -> dict:
+    """Build drift info dict for a single agent."""
     baseline = db.get_baseline(agent_id)
     if baseline is None:
         return {"agent_id": agent_id, "baseline": None, "latest_session": None}
@@ -48,3 +42,18 @@ async def get_drift(request: Request, agent_id: str | None = None):
         },
         "latest_session": latest,
     }
+
+
+@router.get("/drift", response_model=None)
+async def get_drift(request: Request, agent_id: str | None = None):
+    db = request.app.state.db
+
+    if agent_id:
+        return _build_agent_drift(db, agent_id)
+
+    # No agent_id: return drift info for all agents with baselines.
+    rows = db.conn.execute(
+        "SELECT DISTINCT agent_id FROM drift_baselines ORDER BY agent_id"
+    ).fetchall()
+    agents = [_build_agent_drift(db, row[0]) for row in rows]
+    return {"agents": agents}
