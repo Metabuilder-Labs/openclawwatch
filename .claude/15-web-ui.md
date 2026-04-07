@@ -208,20 +208,21 @@ v0.1.0
 
 ## Visual design
 
-### Colors
-- Background: `#0D1117`
-- Surface/cards: `#161B22`
-- Borders: `#30363D`
-- Text primary: `#E6EDF3`
-- Text secondary: `#8B949E`
-- Accent/success: `#00E5A0`
-- Warning: `#D29922`
-- Error/critical: `#F85149`
-- Info/blue: `#3D8EFF`
+### Colors (opencla.watch OSS palette)
+- Background: `#070d1a` (deep navy)
+- Surface/cards: `#0f1729`
+- Borders: `#1e2d4a`
+- Text primary: `#e2e8f0`
+- Text secondary: `#64748b`
+- Accent: `#3d8eff` (electric blue)
+- Success: `#22c55e`
+- Warning: `#f59e0b`
+- Error/critical: `#ef4444`
 
 ### Typography
-- UI chrome (nav, labels, headers, badges): `JetBrains Mono`, monospace
-- Data values (costs, tokens, durations): `JetBrains Mono`, monospace
+- UI chrome (nav, labels, badges): `IBM Plex Mono`, monospace
+- Data values (costs, tokens, durations): `IBM Plex Mono`, monospace
+- Page titles, headings, sidebar brand: `Bricolage Grotesque`, sans-serif
 - Body text (descriptions, empty states): system sans-serif (`-apple-system, BlinkMacSystemFont, 'Segoe UI', ...`)
 
 ### Principles

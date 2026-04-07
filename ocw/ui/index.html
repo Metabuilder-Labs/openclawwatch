@@ -5,18 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OpenClawWatch</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0D1117;
-  --surface: #161B22;
-  --border: #30363D;
-  --text: #E6EDF3;
-  --text-dim: #8B949E;
-  --accent: #00E5A0;
-  --warn: #D29922;
-  --error: #F85149;
-  --info: #3D8EFF;
+  --bg: #070d1a;
+  --surface: #0f1729;
+  --border: #1e2d4a;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --accent: #3d8eff;
+  --warn: #f59e0b;
+  --error: #ef4444;
+  --success: #22c55e;
+  --info: #3d8eff;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -27,7 +29,7 @@ body {
   min-height: 100vh;
 }
 code, .mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
 }
 
 /* Sidebar */
@@ -46,9 +48,9 @@ code, .mono {
   z-index: 10;
 }
 .sidebar-brand {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Bricolage Grotesque', sans-serif;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--accent);
   padding: 0 16px 16px;
   border-bottom: 1px solid var(--border);
@@ -61,12 +63,12 @@ code, .mono {
   padding: 8px 16px;
   color: var(--text-dim);
   text-decoration: none;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 13px;
   transition: background 0.15s, color 0.15s;
 }
 .sidebar a:hover { background: rgba(255,255,255,0.04); color: var(--text); }
-.sidebar a.active { color: var(--accent); background: rgba(0,229,160,0.08); }
+.sidebar a.active { color: var(--accent); background: rgba(61,142,255,0.08); }
 .sidebar a .icon { width: 16px; text-align: center; font-size: 14px; }
 .sidebar-footer {
   margin-top: auto;
@@ -74,7 +76,7 @@ code, .mono {
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-dim);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
 }
 .sidebar-footer a { padding: 4px 0; font-size: 11px; display: inline; }
 
@@ -86,9 +88,9 @@ code, .mono {
   min-width: 0;
 }
 .page-title {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 18px;
-  font-weight: 600;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
   margin-bottom: 20px;
   color: var(--text);
 }
@@ -106,7 +108,7 @@ code, .mono {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-weight: 600;
   font-size: 14px;
 }
@@ -114,8 +116,8 @@ code, .mono {
   width: 8px; height: 8px; border-radius: 50%;
   display: inline-block;
 }
-.status-dot.active { background: var(--accent); }
-.status-dot.completed { background: var(--accent); }
+.status-dot.active { background: var(--success); }
+.status-dot.completed { background: var(--success); }
 .status-dot.idle { background: var(--text-dim); }
 .status-dot.error { background: var(--error); }
 .card-row {
@@ -123,7 +125,7 @@ code, .mono {
   justify-content: space-between;
   padding: 3px 0;
   font-size: 13px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
 }
 .card-row .label { color: var(--text-dim); }
 .card-row .value { color: var(--text); }
@@ -134,7 +136,7 @@ code, .mono {
   margin-top: 6px;
   overflow: hidden;
 }
-.budget-bar-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.3s; }
+.budget-bar-fill { height: 100%; border-radius: 2px; background: var(--success); transition: width 0.3s; }
 .budget-bar-fill.warn { background: var(--warn); }
 .budget-bar-fill.over { background: var(--error); }
 
@@ -143,7 +145,7 @@ code, .mono {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 13px;
 }
 th {
@@ -164,7 +166,7 @@ td {
 }
 tr:hover td { background: rgba(255,255,255,0.02); }
 tr.clickable { cursor: pointer; }
-tr.clickable:hover td { background: rgba(0,229,160,0.04); }
+tr.clickable:hover td { background: rgba(61,142,255,0.04); }
 
 /* Badges */
 .badge {
@@ -173,13 +175,13 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   border-radius: 10px;
   font-size: 11px;
   font-weight: 600;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
 }
-.badge-ok, .badge-completed { background: rgba(0,229,160,0.15); color: var(--accent); }
-.badge-error { background: rgba(248,81,73,0.15); color: var(--error); }
-.badge-active { background: rgba(0,229,160,0.15); color: var(--accent); }
-.badge-critical { background: rgba(248,81,73,0.15); color: var(--error); }
-.badge-warning { background: rgba(210,153,34,0.15); color: var(--warn); }
+.badge-ok, .badge-completed { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-error { background: rgba(239,68,68,0.15); color: var(--error); }
+.badge-active { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-critical { background: rgba(239,68,68,0.15); color: var(--error); }
+.badge-warning { background: rgba(245,158,11,0.15); color: var(--warn); }
 .badge-info { background: rgba(61,142,255,0.15); color: var(--info); }
 
 /* Filters */
@@ -196,7 +198,7 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   color: var(--text);
   padding: 6px 10px;
   border-radius: 6px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
 }
 .filters select:focus, .filters input:focus { outline: none; border-color: var(--accent); }
@@ -207,7 +209,7 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -224,10 +226,10 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   transition: background 0.1s;
 }
 .wf-row:hover { background: rgba(255,255,255,0.03); }
-.wf-row.selected { background: rgba(0,229,160,0.06); }
+.wf-row.selected { background: rgba(61,142,255,0.06); }
 .wf-label {
   flex-shrink: 0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
   color: var(--text-dim);
   overflow: hidden;
@@ -244,15 +246,15 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   display: flex;
   align-items: center;
   padding: 0 6px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   color: #fff;
   overflow: hidden;
   white-space: nowrap;
 }
-.wf-bar.agent { background: var(--accent); color: #0D1117; }
-.wf-bar.llm { background: var(--info); }
-.wf-bar.tool { background: var(--warn); color: #0D1117; }
+.wf-bar.agent { background: var(--success); color: #070d1a; }
+.wf-bar.llm { background: var(--accent); }
+.wf-bar.tool { background: var(--warn); color: #070d1a; }
 .wf-bar.other { background: var(--text-dim); }
 
 /* Span detail */
@@ -262,7 +264,7 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   border-radius: 8px;
   padding: 16px;
   margin-top: 16px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
 }
 .span-detail h3 {
@@ -293,14 +295,14 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   min-width: 140px;
 }
 .summary-label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   color: var(--text-dim);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
 .summary-value {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 20px;
   font-weight: 600;
 }
@@ -314,9 +316,9 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   margin-bottom: 16px;
 }
 .drift-section h3 {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  font-weight: 600;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
   margin-bottom: 12px;
 }
 
@@ -341,7 +343,7 @@ tr.clickable:hover td { background: rgba(0,229,160,0.04); }
   border-radius: 6px;
   padding: 12px;
   margin: 8px 12px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
@@ -782,7 +784,7 @@ function DriftView() {
       <div class="drift-section">
         <h3>${a.agent_id}</h3>
         ${!a.baseline ? html`<div style="color:var(--text-dim);font-size:13px">No baseline yet.</div>` : html`
-          <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;font-family:'JetBrains Mono',monospace">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;font-family:'IBM Plex Mono',monospace">
             Baseline: ${a.baseline.sessions_sampled} sessions sampled${a.baseline.computed_at ? ', computed ' + fmtAgo(a.baseline.computed_at) : ''}
           </div>
           <table>
