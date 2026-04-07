@@ -43,6 +43,10 @@ class AnthropicIntegration:
 
         @functools.wraps(self._original_create)
         def patched_create(self_msg, *args, **kwargs):
+            # Skip span if call originates from litellm (avoids double-counting)
+            from ocw.sdk.integrations.litellm import _ocw_litellm_active
+            if _ocw_litellm_active.get(False):
+                return integration._original_create(self_msg, *args, **kwargs)
             span = integration._tracer.start_span(GenAIAttributes.SPAN_LLM_CALL)
             span.set_attribute(GenAIAttributes.PROVIDER_NAME, "anthropic")
             span.set_attribute(
@@ -107,6 +111,9 @@ class AnthropicIntegration:
         if self._original_stream is not None:
             @functools.wraps(self._original_stream)
             def patched_stream(self_msg, *args, **kwargs):
+                from ocw.sdk.integrations.litellm import _ocw_litellm_active
+                if _ocw_litellm_active.get(False):
+                    return integration._original_stream(self_msg, *args, **kwargs)
                 span = integration._tracer.start_span(GenAIAttributes.SPAN_LLM_CALL)
                 span.set_attribute(GenAIAttributes.PROVIDER_NAME, "anthropic")
                 span.set_attribute(
