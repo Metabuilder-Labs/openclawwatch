@@ -259,11 +259,11 @@ async def test_get_metrics_returns_prometheus_format(client):
     assert "# TYPE" in text
 
 
-async def test_get_drift_requires_agent_id(client):
+async def test_get_drift_without_agent_id_returns_all(client):
     resp = await client.get("/api/v1/drift")
-    assert resp.status_code == 400
+    assert resp.status_code == 200
     data = resp.json()
-    assert "error" in data
+    assert "agents" in data
 
 
 # ── API key auth ───────────────────────────────────────────────────────────
