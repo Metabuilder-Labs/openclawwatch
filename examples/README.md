@@ -32,6 +32,7 @@ One integration per file. Simplest way to see ocw in action with your provider o
 | [`gemini_agent.py`](single_provider/gemini_agent.py) | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `google-generativeai` | Text summarization via Gemini Flash |
 | [`bedrock_agent.py`](single_provider/bedrock_agent.py) | `AWS_DEFAULT_REGION` + AWS creds | `boto3` | Claude on AWS Bedrock (advanced setup) |
 | [`openai_agents_sdk_agent.py`](single_provider/openai_agents_sdk_agent.py) | `OPENAI_API_KEY` | `openai-agents httpx` | Multi-agent handoff via OpenAI Agents SDK |
+| [`litellm_agent.py`](single_provider/litellm_agent.py) | `OPENAI_API_KEY` `ANTHROPIC_API_KEY` | `litellm` | Multi-provider routing via LiteLLM |
 
 > **Note:** `openai_agents_sdk_agent.py` requires `ocw serve` running (`ocw serve &`).
 

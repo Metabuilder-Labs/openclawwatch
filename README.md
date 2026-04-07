@@ -128,9 +128,12 @@ from ocw.sdk.integrations.anthropic import patch_anthropic   # Anthropic — Mes
 from ocw.sdk.integrations.openai    import patch_openai      # OpenAI — chat completions
 from ocw.sdk.integrations.gemini    import patch_gemini      # Google Gemini — GenerativeModel
 from ocw.sdk.integrations.bedrock   import patch_bedrock     # AWS Bedrock — boto3 invoke_model/invoke_agent
+from ocw.sdk.integrations.litellm   import patch_litellm    # LiteLLM — unified interface for 100+ providers
 ```
 
-OpenAI-compatible providers (Groq, Together, Fireworks, xAI, Azure OpenAI) work via `patch_openai(base_url=...)` — no separate patches needed.
+`patch_litellm()` covers all providers LiteLLM routes to (OpenAI, Anthropic, Bedrock, Vertex, Cohere, Mistral, Ollama, etc.) with correct per-provider attribution. If you use LiteLLM, you don't need the individual provider patches above.
+
+OpenAI-compatible providers (Groq, Together, Fireworks, xAI, Azure OpenAI) also work via `patch_openai(base_url=...)` — no separate patches needed.
 
 **Python — framework patches** (instrument the framework's own tool and LLM abstractions):
 

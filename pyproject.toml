@@ -52,6 +52,7 @@ Issues = "https://github.com/Metabuilder-Labs/openclawwatch/issues"
 langchain = ["langchain>=0.2"]
 crewai    = ["crewai>=0.28"]
 autogen   = ["pyautogen>=0.2"]
+litellm   = ["litellm>=1.40"]
 dev       = ["pytest", "pytest-asyncio", "httpx", "ruff", "mypy"]
 
 [project.scripts]
