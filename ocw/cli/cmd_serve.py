@@ -34,8 +34,7 @@ def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
     console.print(f"[bold]ocw serve[/bold] starting on http://{bind_host}:{bind_port}")
     console.print(f"  API docs:    http://{bind_host}:{bind_port}/docs")
     if config.export.prometheus.enabled:
-        console.print(f"  Metrics:     http://{bind_host}:{config.export.prometheus.port}"
-                      f"{config.export.prometheus.path}")
+        console.print(f"  Metrics:     http://{bind_host}:{bind_port}/metrics")
     console.print()
 
     import uvicorn

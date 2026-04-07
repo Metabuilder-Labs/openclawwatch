@@ -21,12 +21,17 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
     # Get all agents from recent sessions
     if agent_filter:
         agent_ids = [agent_filter]
-    else:
-        # Query distinct agent_ids from sessions
+    elif hasattr(db, "conn"):
+        # Direct DB access
         rows = db.conn.execute(
             "SELECT DISTINCT agent_id FROM sessions ORDER BY agent_id"
         ).fetchall()
         agent_ids = [r[0] for r in rows]
+    else:
+        # API mode — discover agents from recent traces
+        from ocw.core.models import TraceFilters
+        traces = db.get_traces(TraceFilters(limit=100))
+        agent_ids = sorted({t.agent_id for t in traces if t.agent_id})
 
     if not agent_ids:
         if output_json:
@@ -39,22 +44,26 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
     agents_data = []
 
     for aid in agent_ids:
-        # Most recent session
-        sessions = db.get_completed_sessions(aid, limit=1)
-        # Also check for active sessions
-        active_rows = db.conn.execute(
-            "SELECT * FROM sessions WHERE agent_id = $1 AND status = 'active' "
-            "ORDER BY started_at DESC LIMIT 1",
-            [aid],
-        ).fetchall()
-
         session = None
-        if active_rows:
-            cols = [d[0] for d in db.conn.description]
-            from ocw.core.db import _row_to_session
-            session = _row_to_session(active_rows[0], cols)
-        elif sessions:
-            session = sessions[0]
+        if hasattr(db, "conn"):
+            # Direct DB access
+            sessions = db.get_completed_sessions(aid, limit=1)
+            active_rows = db.conn.execute(
+                "SELECT * FROM sessions WHERE agent_id = $1 AND status = 'active' "
+                "ORDER BY started_at DESC LIMIT 1",
+                [aid],
+            ).fetchall()
+            if active_rows:
+                cols = [d[0] for d in db.conn.description]
+                from ocw.core.db import _row_to_session
+                session = _row_to_session(active_rows[0], cols)
+            elif sessions:
+                session = sessions[0]
+        else:
+            # API mode — limited session info
+            sessions = db.get_completed_sessions(aid, limit=1)
+            if sessions:
+                session = sessions[0]
 
         today_cost = db.get_daily_cost(aid, utcnow().date())
 

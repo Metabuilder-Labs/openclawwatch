@@ -97,6 +97,15 @@ def run(task: str) -> str:
     ...
 ```
 
+**Try it with the included toy agent** (requires `ANTHROPIC_API_KEY`):
+
+```bash
+python tests/toy_agent/toy_agent.py    # makes one LLM call, creates a session
+ocw status                              # see cost, tokens, session info
+ocw traces                              # see the trace with span waterfall
+ocw cost                                # cost breakdown by model
+```
+
 Watch it live:
 
 ```bash
@@ -223,7 +232,7 @@ ocw export --format json
 ocw export --format csv
 ```
 
-Prometheus metrics are always available at `:9464/metrics` when `ocw serve` is running.
+Prometheus metrics are available at `http://127.0.0.1:7391/metrics` when `ocw serve` is running.
 
 ---
 
@@ -254,7 +263,7 @@ flowchart TD
 
     DB --> CLI["ocw CLI"]
     DB --> API["REST API\n:7391/docs"]
-    DB --> Prom["Prometheus\n:9464/metrics"]
+    DB --> Prom["Prometheus\n:7391/metrics"]
 ```
 
 Spans from Python land via the in-process OTel exporter. Spans from TypeScript (or any external process) arrive via HTTP. Both paths converge at `IngestPipeline`. Everything downstream is identical.
@@ -313,6 +322,8 @@ ocw drift            Drift report: baseline vs latest session Z-scores
 ocw tools            Tool call history with error rates
 ocw export           Export to json / csv / otlp / openevals
 ocw serve            Local REST API + Prometheus metrics endpoint
+ocw stop             Stop the background daemon or ocw serve process
+ocw uninstall        Remove all OCW data, config, and daemon
 ```
 
 ---
@@ -355,7 +366,7 @@ PRs welcome. If you're adding a framework integration, open an issue first so we
 
 ## Roadmap
 
-- [ ] `ocw serve` background daemon (launchd / systemd)
+- [x] `ocw serve` background daemon (launchd / systemd)
 - [ ] Vercel AI SDK integration (TypeScript)
 - [ ] Azure AI Agent Service integration
 - [ ] TypeScript framework patches (LangChain JS, OpenAI Agents SDK)
