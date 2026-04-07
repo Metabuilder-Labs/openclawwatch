@@ -123,8 +123,19 @@ def _install_launchd() -> None:
 </dict>
 </plist>"""
     plist_path.write_text(plist_content)
-    subprocess.run(["launchctl", "load", str(plist_path)], check=True)
-    console.print(f"[green]Daemon installed:[/green] {plist_path}")
+    result = subprocess.run(
+        ["launchctl", "load", str(plist_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        console.print(f"[yellow]Daemon plist written to {plist_path} but "
+                      f"launchctl load failed.[/yellow]")
+        console.print("[dim]Try loading manually:[/dim]")
+        console.print(f"  launchctl load {plist_path}")
+        console.print("[dim]Or run the server directly:[/dim]")
+        console.print("  ocw serve &")
+    else:
+        console.print(f"[green]Daemon installed:[/green] {plist_path}")
 
 
 def _install_systemd() -> None:

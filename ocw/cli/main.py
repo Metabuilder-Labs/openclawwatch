@@ -22,7 +22,41 @@ def cli(ctx: click.Context, config_path: str | None, output_json: bool,
     config = load_config(config_path)
     if db_path:
         config.storage.path = db_path
-    db = open_db(config.storage)
+
+    # Commands that don't need a database connection
+    no_db_commands = {"stop", "uninstall", "onboard"}
+    invoked = ctx.invoked_subcommand
+    if invoked in no_db_commands:
+        ctx.obj["config"] = config
+        ctx.obj["db"] = None
+        ctx.obj["output_json"] = output_json
+        ctx.obj["no_color"] = no_color
+        ctx.obj["agent"] = agent
+        ctx.obj["verbose"] = verbose
+        if no_color:
+            from rich import reconfigure
+            reconfigure(no_color=True)
+        return
+
+    db = None
+    try:
+        db = open_db(config.storage)
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "lock" in err_msg or "already open" in err_msg or "i/o error" in err_msg:
+            from ocw.core.api_backend import probe_api
+            api_key = config.api.auth.api_key if config.api.auth.enabled else None
+            db = probe_api(config.api.host, config.api.port, api_key)
+            if db is None:
+                raise click.ClickException(
+                    "Database is locked (ocw serve is running?) and the API "
+                    f"is not reachable at http://{config.api.host}:{config.api.port}. "
+                    "Start ocw serve or stop the process holding the DB lock."
+                ) from e
+            ctx.obj["api_mode"] = True
+        else:
+            raise
+
     ctx.obj["config"] = config
     ctx.obj["db"] = db
     ctx.obj["output_json"] = output_json
@@ -43,6 +77,8 @@ from ocw.cli.cmd_alerts import cmd_alerts  # noqa: E402
 from ocw.cli.cmd_tools import cmd_tools  # noqa: E402
 from ocw.cli.cmd_export import cmd_export  # noqa: E402
 from ocw.cli.cmd_serve import cmd_serve  # noqa: E402
+from ocw.cli.cmd_stop import cmd_stop  # noqa: E402
+from ocw.cli.cmd_uninstall import cmd_uninstall  # noqa: E402
 from ocw.cli.cmd_doctor import cmd_doctor  # noqa: E402
 
 cli.add_command(cmd_onboard, name="onboard")
@@ -54,6 +90,8 @@ cli.add_command(cmd_alerts, name="alerts")
 cli.add_command(cmd_tools, name="tools")
 cli.add_command(cmd_export, name="export")
 cli.add_command(cmd_serve, name="serve")
+cli.add_command(cmd_stop, name="stop")
+cli.add_command(cmd_uninstall, name="uninstall")
 cli.add_command(cmd_doctor, name="doctor")
 
 # cmd_drift is provided by task 05 — register if available

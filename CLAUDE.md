@@ -115,6 +115,8 @@ Post-ingest hooks run synchronously after each span is written to DB:
 | `ocw tools` | `cmd_tools.py` | Tool call summary: call counts, avg duration |
 | `ocw export` | `cmd_export.py` | Export spans as json (NDJSON), csv, otlp, or openevals format |
 | `ocw serve` | `cmd_serve.py` | Start FastAPI + uvicorn server with retention cleanup cron |
+| `ocw stop` | `cmd_stop.py` | Stop background daemon or ocw serve process |
+| `ocw uninstall` | `cmd_uninstall.py` | Remove all OCW data, config, and daemon |
 | `ocw doctor` | `cmd_doctor.py` | Health checks (config, DB, secrets, webhooks). Exit 0/1/2 |
 
 All commands support `--json` for machine-readable output. Commands that query alerts use exit code 1 if active (unacknowledged, unsuppressed) alerts exist.

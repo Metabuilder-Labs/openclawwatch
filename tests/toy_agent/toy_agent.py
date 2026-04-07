@@ -16,5 +16,5 @@ def run(task: str) -> str:
     return response.content[0].text
 
 if __name__ == "__main__":
-    result = run("What is 2 + 2? Answer in one sentence.")
+    result = run("What is the latest with iran? Answer in one sentence.")
     print(f"Agent said: {result}")
