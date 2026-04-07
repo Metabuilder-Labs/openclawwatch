@@ -1,0 +1,21 @@
+Common AI Agent Design Patterns
+
+AI agents follow several recurring architectural patterns. The simplest is the
+single-loop agent: receive input, call an LLM, optionally invoke tools, and
+return a response. This works well for straightforward tasks but struggles with
+complex multi-step problems.
+
+The router pattern directs each sub-task to the best-suited model or provider.
+A cheap, fast model handles simple lookups while a more capable model tackles
+reasoning-heavy work. This optimizes cost and latency across a session.
+
+Multi-agent teams assign specialized roles to different agents. A lead agent
+decomposes a goal into sub-tasks and delegates them to worker agents, each with
+its own tools and system prompt. Frameworks like CrewAI and AutoGen formalize
+this pattern with role definitions and communication protocols.
+
+The RAG pattern augments LLM calls with retrieved context. Documents are chunked,
+embedded, and stored in a vector index. At query time, relevant chunks are
+retrieved and injected into the prompt, grounding the model's response in
+source material and reducing hallucinations. Fallback chains add resilience
+by switching providers when the primary one fails.

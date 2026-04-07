@@ -1,0 +1,21 @@
+Observability in AI Systems
+
+Observability is the ability to understand the internal state of a system by
+examining its external outputs. In traditional software, observability relies on
+three pillars: logs, metrics, and traces. AI agent systems add new dimensions
+that demand richer telemetry.
+
+Token usage drives both cost and latency, making it a first-class observable.
+Each LLM call consumes input and output tokens whose counts must be captured at
+the span level. Traces become trees of nested spans: a session span wrapping
+multiple LLM calls and tool invocations, revealing where time and money are
+spent.
+
+Semantic conventions standardize attribute names so that different providers and
+frameworks produce comparable data. OpenTelemetry's GenAI semantic conventions
+define attributes like gen_ai.request.model and gen_ai.usage.input_tokens.
+
+Local-first observability stores telemetry on the developer's machine, avoiding
+the need for a cloud backend during prototyping. This approach keeps data
+private, reduces latency, and eliminates signup friction while still supporting
+export to production observability platforms when needed.

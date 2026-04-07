@@ -344,6 +344,24 @@ Those tools were built for LLM developers — tracing API calls, comparing promp
 
 ---
 
+## Examples
+
+The [`examples/`](examples/) directory contains runnable agents for every supported integration:
+
+- **Single provider** — Anthropic, OpenAI, Gemini, Bedrock, OpenAI Agents SDK
+- **Single framework** — LangChain, LangGraph, CrewAI, AutoGen, LlamaIndex
+- **Multi-integration** — provider router, CrewAI + LangChain research team, RAG with fallback
+- **Alerts and drift** — sensitive action alerts, budget breach, behavioral drift detection (no API keys needed)
+
+```bash
+python examples/single_provider/anthropic_agent.py   # tool-use agent
+python examples/alerts_and_drift/drift_demo.py       # zero-cost drift detection demo
+```
+
+See [`examples/README.md`](examples/README.md) for the full list with required env vars and setup notes.
+
+---
+
 ## Contributing
 
 ```bash

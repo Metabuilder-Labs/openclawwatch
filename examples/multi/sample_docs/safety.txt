@@ -1,0 +1,24 @@
+AI Agent Safety and Guardrails
+
+Autonomous AI agents can take actions with real-world consequences, making safety
+guardrails a critical design concern. Effective guardrails operate at multiple
+layers: input validation, output filtering, action approval, and behavioral
+monitoring.
+
+Input validation screens user prompts for injection attacks and out-of-scope
+requests before they reach the LLM. Output filtering checks model responses for
+harmful content, PII leakage, and hallucinated facts before they are returned to
+the user or passed to downstream tools.
+
+Action approval gates prevent agents from executing high-risk operations without
+human confirmation. A tool allowlist restricts which external APIs an agent can
+call, while rate limits cap the number of actions per session.
+
+Behavioral monitoring detects drift from expected patterns. If an agent suddenly
+makes far more tool calls than usual, repeats the same action in a loop, or its
+error rate spikes, an alert should fire. Statistical methods like Z-score
+analysis on span metrics can identify anomalous sessions in real time.
+
+Defense in depth combines all these layers so that no single failure leads to
+unsafe behavior. Logging every decision in an observable trace makes post-incident
+analysis possible and builds trust in autonomous agent systems.
