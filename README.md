@@ -113,6 +113,7 @@ ocw status           # current state, cost, active alerts
 ocw traces           # full span history with waterfall view
 ocw cost --since 7d  # cost breakdown by agent, model, day
 ocw alerts           # everything that fired while you were away
+ocw serve            # open http://127.0.0.1:7391/ for the web UI
 ```
 
 ---
@@ -331,6 +332,25 @@ ocw uninstall        Remove all OCW data, config, and daemon
 
 ---
 
+## Web UI
+
+`ocw serve` includes a local web dashboard at `http://127.0.0.1:7391/`.
+
+- **Status** — agent overview with cost, tokens, tool calls, and active alerts
+- **Traces** — trace list with span waterfall visualization
+- **Cost** — breakdown by agent, model, day, or tool
+- **Alerts** — alert history with severity filtering
+- **Drift** — behavioral drift report with Z-score analysis
+
+No signup, no cloud — runs entirely on your machine.
+
+<!-- Screenshots: add after taking them manually
+![Status page](docs/images/web-ui-status.png)
+![Span waterfall](docs/images/web-ui-waterfall.png)
+-->
+
+---
+
 ## Why not LangSmith / Langfuse / Datadog?
 
 Those tools were built for LLM developers — tracing API calls, comparing prompts, running evals on chat outputs. They're excellent at that. `ocw` was built for a different problem: **autonomous agents running unsupervised with real-world consequences**.
@@ -388,13 +408,18 @@ PRs welcome. If you're adding a framework integration, open an issue first so we
 ## Roadmap
 
 - [x] `ocw serve` background daemon (launchd / systemd)
+- [x] Web UI for `ocw serve`
+- [x] LiteLLM provider patch
+- [x] `ocw stop` and `ocw uninstall` commands
+- [ ] OpenClaw native integration (zero-code OTLP)
+- [ ] `ocw watch` — live tail mode for spans
+- [ ] `ocw replay` — replay captured sessions against new model versions
 - [ ] Vercel AI SDK integration (TypeScript)
 - [ ] Azure AI Agent Service integration
 - [ ] TypeScript framework patches (LangChain JS, OpenAI Agents SDK)
-- [ ] `ocw replay` — replay captured sessions against new model versions
-- [ ] LiteLLM provider patch
 - [ ] Mastra integration (TypeScript)
-- [ ] Web UI for `ocw serve`
+- [ ] Docker image
+- [ ] GitHub Actions integration for CI drift/cost checks
 
 ---
 
