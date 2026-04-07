@@ -48,6 +48,11 @@ openclawwatch/
 │   ├── api/                FastAPI local REST API
 │   ├── sdk/                Python instrumentation SDK
 │   └── utils/              Formatting, time parsing, ID generation
+├── examples/               Runnable example agents (see examples/README.md)
+│   ├── single_provider/    One file per LLM provider integration
+│   ├── single_framework/   One file per framework integration
+│   ├── multi/              Multi-provider/framework examples + sample_docs/
+│   └── alerts_and_drift/   Alert and drift demos (no API keys needed)
 ├── sdk-ts/                 TypeScript SDK (@openclawwatch/sdk)
 ├── pricing/                models.toml — community-maintained model pricing (USD per million tokens)
 └── tests/
@@ -155,6 +160,7 @@ When a span has a `conversation_id` matching an existing session, it's attribute
 10. **Use semconv constants** — reference `GenAIAttributes` and `OcwAttributes` from `ocw/otel/semconv.py` instead of hardcoding OTel attribute name strings.
 11. **OTel TracerProvider is global and set-once** — `trace.set_tracer_provider()` only works once per process. In tests, set the provider once at module level (not per-test in a fixture) and clear spans between tests. Use a custom `_CollectingExporter(SpanExporter)` since `InMemorySpanExporter` is not available in the installed OTel version. See `tests/agents/test_mock_scenarios.py` for the SDK test pattern and `tests/integration/test_full_pipeline.py` for the pipeline pattern.
 12. **New SDK integrations must call `ensure_initialised()`** — every `patch_*()` convenience function must call `from ocw.sdk.bootstrap import ensure_initialised; ensure_initialised()` before installing hooks. This lazily bootstraps the TracerProvider + IngestPipeline on first use.
+13. **PyPI package name is `openclawwatch`, not `ocw`** — `pip install openclawwatch` is the correct install command. The CLI command is `ocw` and the Python package directory is `ocw/`, but the published package name on PyPI is `openclawwatch`. Never write `pip install ocw` in docs, examples, or comments.
 
 ## Config
 

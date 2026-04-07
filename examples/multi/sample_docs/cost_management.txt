@@ -1,0 +1,23 @@
+Managing LLM API Costs
+
+LLM API costs scale with token volume, making cost management essential for any
+production agent system. The primary levers are model selection, prompt
+engineering, and caching.
+
+Model selection has the largest impact. Routing simple queries to smaller, cheaper
+models while reserving expensive frontier models for complex reasoning can reduce
+costs by an order of magnitude. A tiered approach assigns tasks based on
+complexity scores or task type heuristics.
+
+Prompt engineering reduces input tokens by trimming unnecessary context, using
+concise system prompts, and summarizing conversation history instead of passing
+full transcripts. Output token limits prevent runaway generation.
+
+Caching avoids redundant calls. Semantic caches match new queries against
+previous responses using embedding similarity. Provider-level prompt caching
+(like Anthropic's cache_read tokens) discounts repeated prefixes.
+
+Budget alerts provide a safety net. Setting per-session and per-day cost
+thresholds triggers warnings before spend spirals. Observability tools that
+track cost per span, per model, and per agent make it easy to identify the
+most expensive components and optimize them first.
