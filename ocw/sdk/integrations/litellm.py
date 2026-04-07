@@ -186,6 +186,8 @@ def _record_usage(response: object, span, model: str) -> None:
     """Extract provider and token usage from a LiteLLM ModelResponse."""
     provider = _parse_provider(model, response)
     span.set_attribute(GenAIAttributes.PROVIDER_NAME, provider)
+    # Update model attribute to strip provider prefix for consistent pricing
+    span.set_attribute(GenAIAttributes.REQUEST_MODEL, _strip_provider_prefix(model))
 
     usage = getattr(response, "usage", None)
     if usage:
@@ -207,6 +209,7 @@ class _SyncStreamWrapper:
         self._span = span
         self._model = model
         self._usage = None
+        self._last_chunk = None
 
     def __iter__(self):
         try:
@@ -214,6 +217,7 @@ class _SyncStreamWrapper:
                 usage = getattr(chunk, "usage", None)
                 if usage:
                     self._usage = usage
+                self._last_chunk = chunk
                 yield chunk
         except Exception as exc:
             self._span.set_status(
@@ -221,6 +225,12 @@ class _SyncStreamWrapper:
             )
             raise
         finally:
+            provider = _parse_provider(self._model, self._last_chunk)
+            self._span.set_attribute(GenAIAttributes.PROVIDER_NAME, provider)
+            self._span.set_attribute(
+                GenAIAttributes.REQUEST_MODEL,
+                _strip_provider_prefix(self._model),
+            )
             if self._usage:
                 prompt_tokens = getattr(
                     self._usage, "prompt_tokens", None,
@@ -251,6 +261,7 @@ class _AsyncStreamWrapper:
         self._span = span
         self._model = model
         self._usage = None
+        self._last_chunk = None
 
     def __aiter__(self):
         return self._iterate()
@@ -261,6 +272,7 @@ class _AsyncStreamWrapper:
                 usage = getattr(chunk, "usage", None)
                 if usage:
                     self._usage = usage
+                self._last_chunk = chunk
                 yield chunk
         except Exception as exc:
             self._span.set_status(
@@ -268,6 +280,12 @@ class _AsyncStreamWrapper:
             )
             raise
         finally:
+            provider = _parse_provider(self._model, self._last_chunk)
+            self._span.set_attribute(GenAIAttributes.PROVIDER_NAME, provider)
+            self._span.set_attribute(
+                GenAIAttributes.REQUEST_MODEL,
+                _strip_provider_prefix(self._model),
+            )
             if self._usage:
                 prompt_tokens = getattr(
                     self._usage, "prompt_tokens", None,
