@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-04-07
+
+### Fixed
+- `ocw serve` printing wrong metrics port (9464 instead of 7391)
+- `ocw onboard` launchd daemon install now degrades gracefully on failure instead of crashing
+- CLI commands now fall back to REST API when DuckDB is locked by `ocw serve`
+
+### Added
+- `ocw stop` command — graceful shutdown of daemon or background process
+- `ocw uninstall` command — clean removal of all OCW data, config, and daemon
+- 16 runnable example agents across 4 tiers: single provider, single framework, multi-agent, and alerts/drift demos
+- API fallback backend (`ApiBackend`) so CLI works while `ocw serve` holds the DB lock
+
+### Changed
+- README: added toy agent quick-start, example agents section, corrected metrics URL, updated CLI reference
+- CLAUDE.md: updated CLI command table, repo layout, added PyPI package name rule
+
 ## [0.1.1] - 2026-04-06
 
 ### Fixed
