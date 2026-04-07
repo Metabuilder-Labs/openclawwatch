@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-04-07
+
+### Added
+- **Web UI** — local dashboard served by `ocw serve` at `http://127.0.0.1:7391/`
+  - Status view with agent cards, cost, tokens, alerts (auto-refresh 5s)
+  - Traces view with span waterfall visualization and click-to-inspect detail
+  - Cost view with breakdown by day/agent/model/tool and summary totals
+  - Alerts view with severity filtering and expandable JSON detail
+  - Drift view with baseline vs latest session Z-score pass/fail
+- `GET /api/v1/status` endpoint — agent status data (mirrors `ocw status --json`)
+- Drift endpoint now lists all agents when `agent_id` is omitted
+- LiteLLM provider integration (`patch_litellm()`)
+- Single-file Preact SPA — no build step, dark theme, JetBrains Mono
+
+### Changed
+- CORS updated to regex matching for `localhost:*` ports
+- API key injected into UI via `<meta>` tag (no user prompt needed)
+
 ## [0.1.2] - 2026-04-07
 
 ### Fixed
