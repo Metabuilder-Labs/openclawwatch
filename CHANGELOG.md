@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-04-08
+
+### Improved
+- **`ocw onboard` UX overhaul**
+  - Removed agent ID prompt — agents are auto-discovered when spans arrive
+  - Budget is now a global default (`[defaults.budget]`) that applies to all agents
+  - Per-agent `[agents.X.budget]` overrides the default when configured
+  - Cleaner budget prompt: "Daily budget in USD per agent (0 = no limit, default 5)"
+  - Daemon installs automatically (skip with `--no-daemon`)
+  - Rich next-steps output with instrumentation code example
+  - Minimal config file with commented per-agent example
+
 ## [0.1.5] - 2026-04-08
 
 ### Fixed
