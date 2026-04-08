@@ -27,9 +27,9 @@ ocw onboard
 
 Your agent sends emails while you sleep. It writes files, submits forms, calls APIs, spends your money. You find out what happened in the morning — if you're lucky.
 
-Every observability tool out there was built for LLM developers building chat products. None of them were built for **agents with real-world consequences**.
+Most observability tools out there were built for LLM developers building chat products. None of them were built for **agents with real-world consequences**.
 
-`ocw` was.
+`ocw` is.
 
 ---
 
@@ -40,12 +40,22 @@ ocw status
 ```
 
 ```
-● my-email-agent  active  (4m 23s)
+● $ ocw status                                       
+  anthropic-tool-agent   completed   (0m 2s)
 
-  Cost today:     $0.0340 / $5.0000 limit
-  Tokens:         12.4k in / 3.8k out
-  Tool calls:     47  (2 failed)
-  Active session: sess-a1b2c3
+  Cost today:     $0.0018 / $10.0000 limit
+  Tokens:         1.5k in / 151 out
+  Tool calls:     2
+  Active session: 65b7071c-2433-4fc2-a3d9-5b391c0bec66
+
+  No active alerts
+
+ litellm-multi-provider   completed   (0m 4s)
+
+  Cost today:     $0.000199 / $10.0000 limit
+  Tokens:         44 in / 68 out
+  Tool calls:     0
+  Active session: c9585dcf-6bfc-427b-9a27-c9db21f56db8
 
   send_email called (sensitive action: critical)
 ```
@@ -108,6 +118,8 @@ ocw cost                                # cost breakdown by model
 
 Watch it live:
 
+https://github.com/user-attachments/assets/b94d13f6-1432-40d4-b093-6958d74f0e65
+
 ```bash
 ocw status           # current state, cost, active alerts
 ocw traces           # full span history with waterfall view
@@ -115,6 +127,27 @@ ocw cost --since 7d  # cost breakdown by agent, model, day
 ocw alerts           # everything that fired while you were away
 ocw serve            # open http://127.0.0.1:7391/ for the web UI
 ```
+
+## Web UI
+
+`ocw serve` includes a local web dashboard at `http://127.0.0.1:7391/`.
+
+https://github.com/user-attachments/assets/ff09caec-3487-4542-8628-d62b7d92591f
+
+- **Status** — agent overview with cost, tokens, tool calls, and active alerts
+- **Traces** — trace list with span waterfall visualization
+- **Cost** — breakdown by agent, model, day, or tool
+- **Alerts** — alert history with severity filtering
+- **Drift** — behavioral drift report with Z-score analysis
+
+No signup, no cloud — runs entirely on your machine.
+
+<!-- Screenshots: add after taking them manually
+![Status page](docs/images/web-ui-status.png)
+![Span waterfall](docs/images/web-ui-waterfall.png)
+-->
+
+---
 
 ---
 
@@ -335,25 +368,6 @@ ocw uninstall        Remove all OCW data, config, and daemon
 
 ---
 
-## Web UI
-
-`ocw serve` includes a local web dashboard at `http://127.0.0.1:7391/`.
-
-- **Status** — agent overview with cost, tokens, tool calls, and active alerts
-- **Traces** — trace list with span waterfall visualization
-- **Cost** — breakdown by agent, model, day, or tool
-- **Alerts** — alert history with severity filtering
-- **Drift** — behavioral drift report with Z-score analysis
-
-No signup, no cloud — runs entirely on your machine.
-
-<!-- Screenshots: add after taking them manually
-![Status page](docs/images/web-ui-status.png)
-![Span waterfall](docs/images/web-ui-waterfall.png)
--->
-
----
-
 ## Why not LangSmith / Langfuse / Datadog?
 
 Those tools were built for LLM developers — tracing API calls, comparing prompts, running evals on chat outputs. They're excellent at that. `ocw` was built for a different problem: **autonomous agents running unsupervised with real-world consequences**.
@@ -414,7 +428,7 @@ PRs welcome. If you're adding a framework integration, open an issue first so we
 - [x] Web UI for `ocw serve`
 - [x] LiteLLM provider patch
 - [x] `ocw stop` and `ocw uninstall` commands
-- [ ] OpenClaw native integration (zero-code OTLP)
+- [x] OpenClaw native integration (zero-code OTLP)
 - [ ] `ocw watch` — live tail mode for spans
 - [ ] `ocw replay` — replay captured sessions against new model versions
 - [ ] Vercel AI SDK integration (TypeScript)
