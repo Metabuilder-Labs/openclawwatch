@@ -659,13 +659,18 @@ function TraceDetailView({ traceId }) {
     return result;
   }
   const rows = flatten(roots, 0);
-  const labelW = 260;
+  const labelW = 140;
 
   const sel = selected ? spans.find(s => s.span_id === selected) : null;
 
+  // Determine agent name from root span
+  const rootSpan = roots.length ? roots[0] : spans[0];
+  const agentName = rootSpan ? (rootSpan.agent_id || traceId.slice(0, 12)) : traceId.slice(0, 12);
+
   return html`
     <button class="btn btn-back" onClick=${() => location.hash = '#/traces'}>Back to traces</button>
-    <div class="page-title">Trace ${traceId.slice(0, 12)}...</div>
+    <div class="page-title">Trace details for ${agentName}</div>
+    <div style="font-size:12px;color:var(--text-dim);margin:-14px 0 16px;font-family:'IBM Plex Mono',monospace">Click a span for details</div>
     <div class="waterfall">
       ${rows.map(({ span: s, depth }) => {
         const st = new Date(s.start_time).getTime() - traceStart;
@@ -674,18 +679,18 @@ function TraceDetailView({ traceId }) {
         const width = Math.max(dur / traceDur * 100, 3).toFixed(2);
         const kind = spanKindClass(s.name);
         const friendly = friendlySpanName(s.name);
-        const barLabel = friendly + (s.model ? ' (' + s.model + ')' : '') + ' \u2014 ' + fmtDur(s.duration_ms);
+        const detail = s.model || s.tool_name || '';
+        const barLabel = (detail ? detail + ' \u2014 ' : '') + fmtDur(s.duration_ms);
         return html`
           <div class="wf-row ${selected === s.span_id ? 'selected' : ''}" onClick=${() => setSelected(s.span_id)}>
             <div class="wf-label" style="width:${labelW}px;padding-left:${depth * 16 + 8}px">${friendly}</div>
             <div class="wf-track">
-              <div class="wf-bar ${kind}" style="left:${left}%;width:${width}%" title=${barLabel}>${barLabel}</div>
+              <div class="wf-bar ${kind}" style="left:${left}%;width:${width}%" title=${friendly + (detail ? ' \u2014 ' + detail : '')}>${barLabel}</div>
             </div>
           </div>
         `;
       })}
     </div>
-    ${!selected ? html`<div class="wf-hint">Click a span for details</div>` : null}
     ${sel ? html`
       <div class="span-detail">
         <h3>${friendlySpanName(sel.name)}</h3>
