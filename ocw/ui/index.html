@@ -263,6 +263,26 @@ tr.clickable:hover td.chevron { color: var(--accent); }
   padding-right: 8px;
 }
 .wf-track { flex: 1; position: relative; height: 18px; }
+.wf-bar-wrap { position: absolute; height: 100%; }
+.wf-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: #1a2236;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text);
+  white-space: pre;
+  z-index: 100;
+  pointer-events: none;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.wf-bar-wrap:hover .wf-tip { display: block; }
 .wf-bar {
   position: absolute;
   height: 100%;
@@ -696,7 +716,10 @@ function TraceDetailView({ traceId }) {
           <div class="wf-row ${selected === s.span_id ? 'selected' : ''}" onClick=${() => setSelected(s.span_id)}>
             <div class="wf-label" style="width:${labelW}px;padding-left:${depth * 16 + 8}px">${friendly}</div>
             <div class="wf-track">
-              <div class="wf-bar ${kind}" style="left:${left}%;width:${width}%" title=${tooltip}>${barLabel}</div>
+              <div class="wf-bar-wrap" style="left:${left}%;width:${width}%">
+                <div class="wf-bar ${kind}" style="width:100%">${barLabel}</div>
+                <div class="wf-tip">${tooltip}</div>
+              </div>
             </div>
           </div>
         `;
@@ -717,7 +740,9 @@ function TraceDetailView({ traceId }) {
           ${sel.output_tokens != null ? html`<span class="dk">Output tokens</span><span class="dv">${fmtTokens(sel.output_tokens)}</span>` : null}
           ${sel.cost_usd != null ? html`<span class="dk">Cost</span><span class="dv">${fmtCost(sel.cost_usd)}</span>` : null}
           ${sel.agent_id ? html`<span class="dk">Agent</span><span class="dv">${sel.agent_id}</span>` : null}
+          ${sel.conversation_id ? html`<span class="dk">Conversation</span><span class="dv">${sel.conversation_id}</span>` : null}
           ${sel.session_id ? html`<span class="dk">Session</span><span class="dv">${sel.session_id}</span>` : null}
+          <span class="dk">Trace ID</span><span class="dv">${sel.trace_id}</span>
           ${sel.attributes && Object.keys(sel.attributes).length > 0 ? html`
             <span class="dk">Attributes</span><span class="dv"><pre style="margin:0;white-space:pre-wrap;font-size:11px">${JSON.stringify(sel.attributes, null, 2)}</pre></span>
           ` : null}
