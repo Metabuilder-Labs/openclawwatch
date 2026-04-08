@@ -447,7 +447,8 @@ async function api(path, params = {}) {
 
 // --- Helpers ---
 function fmtCost(usd) {
-  if (usd == null) return '-';
+  if (usd == null) return '$0.0000';
+  if (usd === 0) return '$0.0000';
   return usd < 0.001 ? '$' + usd.toFixed(6) : '$' + usd.toFixed(4);
 }
 function fmtTokens(n) {
@@ -701,8 +702,12 @@ function TraceDetailView({ traceId }) {
         const width = Math.max(dur / traceDur * 100, 3).toFixed(2);
         const kind = spanKindClass(s.name);
         const friendly = friendlySpanName(s.name);
+        const isAgent = kind === 'agent';
         const detail = s.model || s.tool_name || '';
-        const barLabel = (detail ? detail + ' \u2014 ' : '') + fmtDur(s.duration_ms);
+        const costStr = s.cost_usd != null && s.cost_usd > 0 ? ' \u2014 ' + fmtCost(s.cost_usd) : '';
+        const barLabel = isAgent
+          ? fmtDur(s.duration_ms) + costStr
+          : (detail ? detail + ' \u2014 ' : '') + fmtDur(s.duration_ms) + costStr;
         const tipLines = [friendly];
         tipLines.push('Duration: ' + fmtDur(s.duration_ms));
         if (s.provider) tipLines.push('Provider: ' + s.provider);
