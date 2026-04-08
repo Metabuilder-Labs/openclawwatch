@@ -114,10 +114,28 @@ def _parse_span(raw: dict, resource_attrs: dict[str, Any]) -> NormalizedSpan:
     }
     kind = kind_map.get(kind_int, SpanKind.INTERNAL)
 
+    # --- OpenClaw / generic OTLP attribute enrichment ---
+    span_name = raw.get("name", "")
+    agent_id = attrs.get(GenAIAttributes.AGENT_ID)
+    tool_name = attrs.get(GenAIAttributes.TOOL_NAME)
+    provider = attrs.get(GenAIAttributes.PROVIDER_NAME)
+
+    # Fall back to service.name for agent_id (OpenClaw sets service.name)
+    if not agent_id:
+        agent_id = attrs.get("service.name") or None
+
+    # Fall back to gen_ai.system for provider (OpenClaw uses this)
+    if not provider:
+        provider = attrs.get("gen_ai.system") or None
+
+    # Extract tool_name from span names like "tool.Read", "tool.exec"
+    if not tool_name and span_name.startswith("tool."):
+        tool_name = span_name[5:]  # strip "tool." prefix
+
     return NormalizedSpan(
         span_id=raw.get("spanId", new_span_id()),
         trace_id=raw.get("traceId", ""),
-        name=raw.get("name", ""),
+        name=span_name,
         kind=kind,
         status_code=status_code,
         status_message=status_raw.get("message"),
@@ -132,10 +150,10 @@ def _parse_span(raw: dict, resource_attrs: dict[str, Any]) -> NormalizedSpan:
             for e in raw.get("events", [])
         ],
         # Extract indexed fields from merged attributes
-        agent_id=attrs.get(GenAIAttributes.AGENT_ID),
-        provider=attrs.get(GenAIAttributes.PROVIDER_NAME),
+        agent_id=agent_id,
+        provider=provider,
         model=attrs.get(GenAIAttributes.REQUEST_MODEL),
-        tool_name=attrs.get(GenAIAttributes.TOOL_NAME),
+        tool_name=tool_name,
         input_tokens=_safe_int(attrs.get(GenAIAttributes.INPUT_TOKENS)),
         output_tokens=_safe_int(attrs.get(GenAIAttributes.OUTPUT_TOKENS)),
         cache_tokens=_safe_int(attrs.get(GenAIAttributes.CACHE_READ_TOKENS)),
