@@ -8,25 +8,18 @@ from pathlib import Path
 
 import click
 
-from ocw.core.config import (
-    AgentConfig,
-    BudgetConfig,
-    OcwConfig,
-    SecurityConfig,
-    find_config_file,
-    write_config,
-)
+from ocw.core.config import find_config_file
 from ocw.utils.formatting import console
 
 
 @click.command("onboard")
-@click.option("--agent", "agent_id", default=None, help="Agent ID to configure")
-@click.option("--budget", type=float, default=None, help="Daily budget in USD (0 = no limit)")
+@click.option("--budget", type=float, default=None,
+              help="Daily budget in USD per agent (0 = no limit)")
 @click.option("--install-daemon", is_flag=True, default=False)
 @click.option("--no-daemon", is_flag=True, default=False)
 @click.option("--force", is_flag=True, help="Overwrite existing config")
 @click.pass_context
-def cmd_onboard(ctx: click.Context, agent_id: str | None, budget: float | None,
+def cmd_onboard(ctx: click.Context, budget: float | None,
                 install_daemon: bool, no_daemon: bool, force: bool) -> None:
     """Interactive setup wizard for ocw."""
     existing = find_config_file()
@@ -35,11 +28,15 @@ def cmd_onboard(ctx: click.Context, agent_id: str | None, budget: float | None,
         console.print("Use [bold]--force[/bold] to overwrite.")
         return
 
-    if agent_id is None:
-        agent_id = click.prompt("Agent ID", default="my-agent")
+    console.print()
+    console.print("[bold]Setting up OpenClawWatch...[/bold]")
+    console.print()
 
     if budget is None:
-        budget = click.prompt("Daily budget in USD (0 = no limit)", type=float, default=5.0)
+        budget = click.prompt(
+            "Daily budget in USD (applies to all agents, 0 = no limit)",
+            type=float, default=5.0,
+        )
 
     ingest_secret = secrets.token_hex(32)
 
@@ -49,53 +46,115 @@ def cmd_onboard(ctx: click.Context, agent_id: str | None, budget: float | None,
     elif not no_daemon:
         want_daemon = click.confirm("Install background daemon?", default=False)
 
-    agents = {}
-    if budget and budget > 0:
-        agents[agent_id] = AgentConfig(budget=BudgetConfig(daily_usd=budget))
-    else:
-        agents[agent_id] = AgentConfig()
-
-    config = OcwConfig(
-        version="1",
-        agents=agents,
-        security=SecurityConfig(ingest_secret=ingest_secret),
-    )
-
     config_path = Path(".ocw/config.toml")
-    write_config(config, config_path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
 
+    budget_line = ""
+    if budget and budget > 0:
+        budget_line = f"daily_usd = {budget}"
+
+    config_text = f"""\
+# OpenClawWatch configuration
+# Docs: https://github.com/Metabuilder-Labs/openclawwatch#configuration
+
+[defaults.budget]
+{budget_line}
+
+[security]
+ingest_secret = "{ingest_secret}"
+
+[capture]
+prompts = false
+completions = false
+tool_outputs = false
+
+[storage]
+path = "~/.ocw/telemetry.duckdb"
+retention_days = 90
+
+# Per-agent overrides (optional):
+# [agents.my-agent]
+# description = "My email agent"
+#   [agents.my-agent.budget]
+#   daily_usd = 5.00
+#   session_usd = 1.00
+#   [[agents.my-agent.sensitive_actions]]
+#   name = "send_email"
+#   severity = "critical"
+"""
+    config_path.write_text(config_text)
+
+    daemon_msg = None
     if want_daemon:
-        _install_daemon()
+        daemon_msg = _install_daemon()
+
+    # Output
+    console.print()
+    console.print("[green]\u2713[/green] Config written to [bold].ocw/config.toml[/bold]")
+    console.print(f"[green]\u2713[/green] Ingest secret generated: "
+                  f"[dim]{ingest_secret[:8]}...[/dim]")
+    if budget and budget > 0:
+        console.print(f"[green]\u2713[/green] Default daily budget: "
+                      f"[bold]${budget:.2f}[/bold] per agent")
+    if daemon_msg:
+        console.print(f"[green]\u2713[/green] {daemon_msg}")
 
     console.print()
-    console.print("[bold green]Setup complete.[/bold green]")
-    console.print(f"  Config written to: {config_path}")
-    console.print(f"  Agent ID:          {agent_id}")
-    console.print(f"  Ingest secret:     {ingest_secret[:8]}...")
-    if budget and budget > 0:
-        console.print(f"  Daily budget:      ${budget:.2f}")
+    console.print("[bold]Next steps:[/bold]")
+    console.print()
+    console.print("  1. Instrument your agent:")
+    console.print()
+    console.print("[dim]     from ocw.sdk import watch[/dim]")
+    console.print("[dim]     from ocw.sdk.integrations.anthropic import patch_anthropic[/dim]")
+    console.print()
+    console.print("[dim]     patch_anthropic()[/dim]")
+    console.print()
+    console.print('[dim]     @watch(agent_id="my-agent")[/dim]')
+    console.print("[dim]     def run(task):[/dim]")
+    console.print("[dim]         ...[/dim]")
+    console.print()
+    console.print("  2. Run your agent \u2014 spans are recorded automatically")
+    console.print()
+    console.print("  3. View telemetry:")
+    console.print("[dim]     ocw status          [/dim]# agent overview")
+    console.print("[dim]     ocw traces          [/dim]# span history")
+    console.print("[dim]     ocw serve           [/dim]# web UI at http://127.0.0.1:7391/")
+    console.print()
+
     if not want_daemon:
+        console.print("  Run [bold]ocw serve[/bold] to start the web UI "
+                      "and enable real-time alerts.")
         console.print()
-        console.print("[dim]Run [bold]ocw serve[/bold] manually for real-time alerts "
-                      "on background agents.[/dim]")
+
+    console.print(
+        "  To configure per-agent budgets, sensitive actions, or drift detection:"
+    )
+    console.print(
+        "  Edit [bold].ocw/config.toml[/bold] \u2014 see "
+        "[dim]https://github.com/Metabuilder-Labs/openclawwatch#configuration[/dim]"
+    )
+    console.print()
 
 
-def _install_daemon() -> None:
+def _install_daemon() -> str | None:
+    """Install background daemon. Returns success message or None."""
     system = platform.system()
     try:
         if system == "Darwin":
-            _install_launchd()
+            return _install_launchd()
         elif system == "Linux":
-            _install_systemd()
+            return _install_systemd()
         else:
             console.print(f"[yellow]Background daemon not supported on {system}. "
                           "Run `ocw serve` manually.[/yellow]")
+            return None
     except Exception as e:
         console.print(f"[yellow]Daemon installation failed: {e}[/yellow]")
         console.print("[dim]You can run `ocw serve` manually instead.[/dim]")
+        return None
 
 
-def _install_launchd() -> None:
+def _install_launchd() -> str | None:
     ocw_path = sys.executable.replace("/python", "/ocw").replace("/python3", "/ocw")
     plist_path = Path.home() / "Library/LaunchAgents/com.openclawwatch.serve.plist"
     plist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,11 +193,11 @@ def _install_launchd() -> None:
         console.print(f"  launchctl load {plist_path}")
         console.print("[dim]Or run the server directly:[/dim]")
         console.print("  ocw serve &")
-    else:
-        console.print(f"[green]Daemon installed:[/green] {plist_path}")
+        return None
+    return f"Daemon installed at {plist_path}"
 
 
-def _install_systemd() -> None:
+def _install_systemd() -> str | None:
     ocw_path = sys.executable.replace("/python", "/ocw").replace("/python3", "/ocw")
     service_path = Path.home() / ".config/systemd/user/openclawwatch.service"
     service_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,4 +217,4 @@ WantedBy=default.target"""
         ["systemctl", "--user", "enable", "--now", "openclawwatch"],
         check=True,
     )
-    console.print(f"[green]Daemon installed:[/green] {service_path}")
+    return f"Daemon installed at {service_path}"

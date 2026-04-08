@@ -67,10 +67,15 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 
         today_cost = db.get_daily_cost(aid, utcnow().date())
 
-        # Budget from config
+        # Budget from config: per-agent overrides defaults
         config = ctx.obj["config"]
         agent_config = config.agents.get(aid)
-        daily_limit = agent_config.budget.daily_usd if agent_config else None
+        if agent_config and agent_config.budget.daily_usd is not None:
+            daily_limit = agent_config.budget.daily_usd
+        elif hasattr(config, "defaults") and config.defaults.budget.daily_usd is not None:
+            daily_limit = config.defaults.budget.daily_usd
+        else:
+            daily_limit = None
 
         # Active alerts
         alerts = db.get_alerts(AlertFilters(agent_id=aid, unread=True, limit=50))
