@@ -519,6 +519,7 @@ function StatusView() {
 
   return html`
     <div class="page-title">Status</div>
+    <div style="font-size:12px;color:var(--text-dim);margin:-14px 0 16px;font-family:'IBM Plex Mono',monospace">Click on an agent tile for details</div>
     <div class="cards">
       ${data.agents.map(a => html`
         <div class="card clickable" onClick=${() => { location.hash = '#/traces'; }}>
