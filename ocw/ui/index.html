@@ -571,6 +571,7 @@ function TracesListView() {
 
   return html`
     <div class="page-title">Traces</div>
+    <div style="font-size:12px;color:var(--text-dim);margin:-14px 0 16px;font-family:'IBM Plex Mono',monospace">Click on a trace row for details</div>
     <div class="filters">
       <select value=${since} onChange=${e => setSince(e.target.value)}>
         <option value="1h">Last 1h</option>
