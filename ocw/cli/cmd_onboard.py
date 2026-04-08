@@ -15,12 +15,12 @@ from ocw.utils.formatting import console
 @click.command("onboard")
 @click.option("--budget", type=float, default=None,
               help="Daily budget in USD per agent (0 = no limit)")
-@click.option("--install-daemon", is_flag=True, default=False)
-@click.option("--no-daemon", is_flag=True, default=False)
+@click.option("--no-daemon", is_flag=True, default=False,
+              help="Skip background daemon installation")
 @click.option("--force", is_flag=True, help="Overwrite existing config")
 @click.pass_context
 def cmd_onboard(ctx: click.Context, budget: float | None,
-                install_daemon: bool, no_daemon: bool, force: bool) -> None:
+                no_daemon: bool, force: bool) -> None:
     """Interactive setup wizard for ocw."""
     existing = find_config_file()
     if existing and not force:
@@ -34,17 +34,14 @@ def cmd_onboard(ctx: click.Context, budget: float | None,
 
     if budget is None:
         budget = click.prompt(
-            "Daily budget in USD (applies to all agents, 0 = no limit)",
-            type=float, default=5.0,
+            "Daily budget in USD per agent (0 = no limit, default 5)",
+            type=float, default=5.0, show_default=False,
         )
 
     ingest_secret = secrets.token_hex(32)
 
-    want_daemon = False
-    if install_daemon:
-        want_daemon = True
-    elif not no_daemon:
-        want_daemon = click.confirm("Install background daemon?", default=False)
+    # Always install daemon unless --no-daemon was passed
+    want_daemon = not no_daemon
 
     config_path = Path(".ocw/config.toml")
     config_path.parent.mkdir(parents=True, exist_ok=True)
