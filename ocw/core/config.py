@@ -43,6 +43,11 @@ class AgentConfig:
 
 
 @dataclass
+class DefaultsConfig:
+    budget: BudgetConfig = field(default_factory=BudgetConfig)
+
+
+@dataclass
 class StorageConfig:
     path:           str = "~/.ocw/telemetry.duckdb"
     retention_days: int = 90
@@ -135,6 +140,7 @@ class CaptureConfig:
 @dataclass
 class OcwConfig:
     version:  str
+    defaults: DefaultsConfig          = field(default_factory=DefaultsConfig)
     agents:   dict[str, AgentConfig]  = field(default_factory=dict)
     storage:  StorageConfig           = field(default_factory=StorageConfig)
     export:   ExportConfig            = field(default_factory=ExportConfig)
@@ -268,8 +274,13 @@ def _parse(raw: dict) -> OcwConfig:
         tool_outputs=capture_raw.get("tool_outputs", False),
     )
 
+    defaults_raw = raw.get("defaults", {})
+    defaults_budget_raw = defaults_raw.get("budget", {})
+    defaults = DefaultsConfig(budget=BudgetConfig(**defaults_budget_raw))
+
     return OcwConfig(
         version=raw.get("version", "1"),
+        defaults=defaults,
         agents=agents,
         storage=storage,
         export=export,

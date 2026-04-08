@@ -273,12 +273,20 @@ class AlertEngine:
     def _check_cost_budgets(self, session: SessionRecord) -> None:
         """Check daily and session cost thresholds against the agent's budget config."""
         agent_cfg = self.config.agents.get(session.agent_id)
-        if not agent_cfg:
+        # Resolve budget: per-agent overrides defaults
+        if agent_cfg:
+            budget = agent_cfg.budget
+        elif hasattr(self.config, "defaults"):
+            budget = self.config.defaults.budget
+        else:
+            return
+        from ocw.core.config import BudgetConfig
+        if budget == BudgetConfig():
             return
 
         # Session budget
-        if agent_cfg.budget.session_usd is not None and session.total_cost_usd is not None:
-            if session.total_cost_usd > agent_cfg.budget.session_usd:
+        if budget.session_usd is not None and session.total_cost_usd is not None:
+            if session.total_cost_usd > budget.session_usd:
                 alert = Alert(
                     alert_id=new_uuid(),
                     fired_at=utcnow(),
@@ -287,8 +295,8 @@ class AlertEngine:
                     title=f"cost_budget_session — {session.agent_id}",
                     detail={
                         "session_cost": session.total_cost_usd,
-                        "budget": agent_cfg.budget.session_usd,
-                        "message": f"Session cost ${session.total_cost_usd:.4f} exceeds budget ${agent_cfg.budget.session_usd:.4f}",
+                        "budget": budget.session_usd,
+                        "message": f"Session cost ${session.total_cost_usd:.4f} exceeds budget ${budget.session_usd:.4f}",
                     },
                     agent_id=session.agent_id,
                     session_id=session.session_id,
@@ -296,10 +304,10 @@ class AlertEngine:
                 self._fire(alert)
 
         # Daily budget
-        if agent_cfg.budget.daily_usd is not None:
+        if budget.daily_usd is not None:
             today = utcnow().date()
             daily_cost = self.db.get_daily_cost(session.agent_id, today)
-            if daily_cost > agent_cfg.budget.daily_usd:
+            if daily_cost > budget.daily_usd:
                 alert = Alert(
                     alert_id=new_uuid(),
                     fired_at=utcnow(),
@@ -308,8 +316,8 @@ class AlertEngine:
                     title=f"cost_budget_daily — {session.agent_id}",
                     detail={
                         "daily_cost": daily_cost,
-                        "budget": agent_cfg.budget.daily_usd,
-                        "message": f"Daily cost ${daily_cost:.4f} exceeds budget ${agent_cfg.budget.daily_usd:.4f}",
+                        "budget": budget.daily_usd,
+                        "message": f"Daily cost ${daily_cost:.4f} exceeds budget ${budget.daily_usd:.4f}",
                     },
                     agent_id=session.agent_id,
                     session_id=session.session_id,
