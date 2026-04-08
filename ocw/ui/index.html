@@ -683,11 +683,20 @@ function TraceDetailView({ traceId }) {
         const friendly = friendlySpanName(s.name);
         const detail = s.model || s.tool_name || '';
         const barLabel = (detail ? detail + ' \u2014 ' : '') + fmtDur(s.duration_ms);
+        const tipLines = [friendly];
+        tipLines.push('Duration: ' + fmtDur(s.duration_ms));
+        if (s.provider) tipLines.push('Provider: ' + s.provider);
+        if (s.model) tipLines.push('Model: ' + s.model);
+        if (s.tool_name) tipLines.push('Tool: ' + s.tool_name);
+        if (s.input_tokens != null) tipLines.push('Input tokens: ' + fmtTokens(s.input_tokens));
+        if (s.output_tokens != null) tipLines.push('Output tokens: ' + fmtTokens(s.output_tokens));
+        if (s.cost_usd != null) tipLines.push('Cost: ' + fmtCost(s.cost_usd));
+        const tooltip = tipLines.join('\n');
         return html`
           <div class="wf-row ${selected === s.span_id ? 'selected' : ''}" onClick=${() => setSelected(s.span_id)}>
             <div class="wf-label" style="width:${labelW}px;padding-left:${depth * 16 + 8}px">${friendly}</div>
             <div class="wf-track">
-              <div class="wf-bar ${kind}" style="left:${left}%;width:${width}%" title=${friendly + (detail ? ' \u2014 ' + detail : '')}>${barLabel}</div>
+              <div class="wf-bar ${kind}" style="left:${left}%;width:${width}%" title=${tooltip}>${barLabel}</div>
             </div>
           </div>
         `;
