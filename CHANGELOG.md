@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-04-08
+
+### Fixed
+- SDK DuckDB lock error when `ocw serve` is running — bootstrap now detects the server and sends spans via HTTP (`OcwHttpExporter`) instead of opening DuckDB directly
+- LiteLLM model names no longer include provider prefix (`gpt-4o-mini` not `openai/gpt-4o-mini`), fixing pricing lookup failures
+- LiteLLM streaming wrappers now correctly attribute provider and stripped model name
+
+### Added
+- OpenClaw integration — zero-code OTLP ingestion for OpenClaw agents (PR #15)
+- Web UI restyled to opencla.watch palette (deep navy + electric blue, IBM Plex Mono, Bricolage Grotesque)
+- Inline SVG logo in web UI sidebar
+
+### Changed
+- Node.js upgraded from 20 to 22 in CI and publish workflows
+- npm SDK bumped to 0.1.4 (matching Python release)
+- README: added Web UI section, updated roadmap (4 items complete, 5 new)
+
 ## [0.1.3] - 2026-04-07
 
 ### Added
