@@ -122,6 +122,8 @@ ocw serve            # open http://127.0.0.1:7391/ for the web UI
 
 `ocw` is OTel-native. Any framework that emits OpenTelemetry spans works automatically — point its OTLP exporter at `ocw serve` and you're done. For everything else, one-line patches exist.
 
+**OpenClaw** — zero-code, first-class support. OpenClaw's built-in `diagnostics-otel` plugin exports traces directly to `ocw serve`. Just set `"endpoint": "http://127.0.0.1:7391"` in your `openclaw.json` — no SDK code, no patches. See [docs/openclaw.md](docs/openclaw.md) for the full setup guide.
+
 **Python — provider patches** (intercept at the API level, framework-agnostic):
 
 ```python
@@ -152,6 +154,7 @@ from ocw.sdk.integrations.nemoclaw          import watch_nemoclaw         # Nemo
 
 | Framework | OTel support |
 |---|---|
+| **OpenClaw** | **Built-in** (`diagnostics-otel` plugin) — [setup guide](docs/openclaw.md) |
 | LlamaIndex | `opentelemetry-instrumentation-llama-index` |
 | OpenAI Agents SDK | Built-in |
 | Google ADK | Built-in |
