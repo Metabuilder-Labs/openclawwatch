@@ -98,7 +98,7 @@ class TestLiteLLMIntegration:
 
         assert len(spans) == 1
         span = spans[0]
-        assert span.attributes[GenAIAttributes.REQUEST_MODEL] == "openai/gpt-4o-mini"
+        assert span.attributes[GenAIAttributes.REQUEST_MODEL] == "gpt-4o-mini"
         assert span.attributes[GenAIAttributes.PROVIDER_NAME] == "openai"
         assert span.attributes[GenAIAttributes.INPUT_TOKENS] == 100
         assert span.attributes[GenAIAttributes.OUTPUT_TOKENS] == 50
@@ -121,7 +121,7 @@ class TestLiteLLMIntegration:
 
         assert len(spans) == 1
         span = spans[0]
-        assert span.attributes[GenAIAttributes.REQUEST_MODEL] == "anthropic/claude-haiku-4-5"
+        assert span.attributes[GenAIAttributes.REQUEST_MODEL] == "claude-haiku-4-5"
         assert span.attributes[GenAIAttributes.PROVIDER_NAME] == "anthropic"
         assert span.attributes[GenAIAttributes.INPUT_TOKENS] == 200
         assert span.attributes[GenAIAttributes.OUTPUT_TOKENS] == 80

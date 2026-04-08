@@ -44,6 +44,16 @@ def _parse_provider(model: str, response: object) -> str:
     return "litellm"
 
 
+def _strip_provider_prefix(model: str) -> str:
+    """Strip provider prefix from LiteLLM model string.
+
+    'openai/gpt-4o-mini' -> 'gpt-4o-mini', consistent with patch_openai.
+    """
+    if "/" in model:
+        return model.split("/", 1)[1]
+    return model
+
+
 class LiteLLMIntegration:
     name = "litellm"
     installed = False
@@ -70,11 +80,12 @@ class LiteLLMIntegration:
 
         @functools.wraps(self._original_completion)
         def patched_completion(*args, **kwargs):
-            model = args[0] if args else kwargs.get("model", "unknown")
+            raw_model = str(args[0] if args else kwargs.get("model", "unknown"))
+            model = _strip_provider_prefix(raw_model)
             is_stream = kwargs.get("stream", False)
 
             span = integration._tracer.start_span(GenAIAttributes.SPAN_LLM_CALL)
-            span.set_attribute(GenAIAttributes.REQUEST_MODEL, str(model))
+            span.set_attribute(GenAIAttributes.REQUEST_MODEL, model)
 
             # Inherit agent_id / conversation_id from parent span
             parent_span = trace.get_current_span()
@@ -94,8 +105,8 @@ class LiteLLMIntegration:
             try:
                 response = integration._original_completion(*args, **kwargs)
                 if is_stream:
-                    return _SyncStreamWrapper(response, span, model)
-                _record_usage(response, span, model)
+                    return _SyncStreamWrapper(response, span, raw_model)
+                _record_usage(response, span, raw_model)
                 span.set_status(trace.Status(trace.StatusCode.OK))
                 return response
             except Exception as exc:
@@ -112,11 +123,12 @@ class LiteLLMIntegration:
 
         @functools.wraps(self._original_acompletion)
         async def patched_acompletion(*args, **kwargs):
-            model = args[0] if args else kwargs.get("model", "unknown")
+            raw_model = str(args[0] if args else kwargs.get("model", "unknown"))
+            model = _strip_provider_prefix(raw_model)
             is_stream = kwargs.get("stream", False)
 
             span = integration._tracer.start_span(GenAIAttributes.SPAN_LLM_CALL)
-            span.set_attribute(GenAIAttributes.REQUEST_MODEL, str(model))
+            span.set_attribute(GenAIAttributes.REQUEST_MODEL, model)
 
             parent_span = trace.get_current_span()
             if parent_span and parent_span.is_recording():
@@ -137,8 +149,8 @@ class LiteLLMIntegration:
                     *args, **kwargs,
                 )
                 if is_stream:
-                    return _AsyncStreamWrapper(response, span, model)
-                _record_usage(response, span, model)
+                    return _AsyncStreamWrapper(response, span, raw_model)
+                _record_usage(response, span, raw_model)
                 span.set_status(trace.Status(trace.StatusCode.OK))
                 return response
             except Exception as exc:

@@ -33,12 +33,21 @@ def ensure_initialised() -> None:
 
         try:
             from ocw.core.config import load_config
-            from ocw.core.db import open_db
-            from ocw.core.ingest import IngestPipeline
-            from ocw.core.cost import CostEngine
             from ocw.otel.provider import build_tracer_provider
 
             config = load_config()
+
+            # Check if ocw serve is running — use HTTP exporter if so
+            if _try_http_mode(config):
+                _initialised = True
+                atexit.register(_shutdown)
+                return
+
+            # Direct DuckDB mode
+            from ocw.core.db import open_db
+            from ocw.core.ingest import IngestPipeline
+            from ocw.core.cost import CostEngine
+
             db = open_db(config.storage)
             cost_engine = CostEngine(db)
             pipeline = IngestPipeline(db, config, cost_engine=cost_engine)
@@ -48,11 +57,57 @@ def ensure_initialised() -> None:
             # Ensure spans are flushed on exit
             atexit.register(_shutdown)
 
-            logger.debug("OCW tracing initialised (db=%s)", config.storage.path)
+            logger.debug("OCW: writing spans to local DuckDB (%s)", config.storage.path)
 
         except Exception as exc:
+            # DuckDB lock error — try HTTP fallback
+            err_msg = str(exc).lower()
+            if "lock" in err_msg or "i/o error" in err_msg:
+                try:
+                    config = load_config()
+                    if _try_http_mode(config):
+                        _initialised = True
+                        atexit.register(_shutdown)
+                        return
+                except Exception:
+                    pass
             logger.warning("OCW bootstrap failed — spans will not be recorded: %s", exc)
             _initialised = True  # Don't retry on every call
+
+
+def _try_http_mode(config) -> bool:
+    """Try to connect to ocw serve and set up HTTP exporter. Returns True on success."""
+    global _provider
+    import httpx
+    base_url = f"http://{config.api.host}:{config.api.port}"
+    try:
+        resp = httpx.get(f"{base_url}/api/v1/status", timeout=2)
+        if resp.status_code not in (200, 401):
+            return False
+    except (httpx.ConnectError, httpx.TimeoutException):
+        return False
+
+    from ocw.sdk.http_exporter import OcwHttpExporter
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry import trace as trace_api
+    import ocw
+
+    endpoint = f"{base_url}/api/v1/spans"
+    exporter = OcwHttpExporter(endpoint, config.security.ingest_secret)
+
+    resource = Resource.create({
+        "service.name": "openclawwatch",
+        "service.version": ocw.__version__,
+    })
+    provider = TracerProvider(resource=resource)
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace_api.set_tracer_provider(provider)
+    _provider = provider
+
+    logger.info("OCW: sending spans to ocw serve at %s", base_url)
+    return True
 
 
 def _shutdown() -> None:
