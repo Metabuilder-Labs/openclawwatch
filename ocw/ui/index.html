@@ -247,9 +247,11 @@ tr.clickable:hover td.chevron { color: var(--accent); }
   border-radius: 4px;
   transition: background 0.1s;
 }
-.wf-row:hover { background: rgba(255,255,255,0.03); }
+.wf-row:hover { background: rgba(255,255,255,0.04); }
+.wf-row:hover .wf-label { color: var(--text); }
 .wf-row:hover .wf-bar { box-shadow: 0 0 8px rgba(61,142,255,0.25); }
-.wf-row.selected { background: rgba(61,142,255,0.06); border-left: 2px solid var(--accent); }
+.wf-row.selected { background: rgba(61,142,255,0.08); border-left: 2px solid var(--accent); }
+.wf-row.selected .wf-label { color: var(--accent); }
 .wf-label {
   flex-shrink: 0;
   font-family: 'IBM Plex Mono', monospace;
@@ -659,7 +661,7 @@ function TraceDetailView({ traceId }) {
     return result;
   }
   const rows = flatten(roots, 0);
-  const labelW = 140;
+  const labelW = 100;
 
   const sel = selected ? spans.find(s => s.span_id === selected) : null;
 
@@ -668,7 +670,7 @@ function TraceDetailView({ traceId }) {
   const agentName = rootSpan ? (rootSpan.agent_id || traceId.slice(0, 12)) : traceId.slice(0, 12);
 
   return html`
-    <button class="btn btn-back" onClick=${() => location.hash = '#/traces'}>Back to traces</button>
+    <button class="btn btn-back" onClick=${() => location.hash = '#/traces'}>\u2190 Back to traces</button>
     <div class="page-title">Trace details for ${agentName}</div>
     <div style="font-size:12px;color:var(--text-dim);margin:-14px 0 16px;font-family:'IBM Plex Mono',monospace">Click a span for details</div>
     <div class="waterfall">
