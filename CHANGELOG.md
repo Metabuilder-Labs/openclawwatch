@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-04-08
+
+### Fixed
+- **Pricing file missing from pip wheel** — `pricing/models.toml` was at the repo root, outside the `ocw/` package. Moved to `ocw/pricing/models.toml` so it's included in the wheel. All costs showed `$0.000000` in v0.1.4.
+
+### Improved
+- **Web UI polish** — custom hover tooltips on waterfall bars (cost, duration, model), back arrow on trace detail, agent name heading, tighter layout, hint text on Status and Traces views
+- **Waterfall bar labels** — now show cost alongside duration and model name
+
+### Added
+- Manual release testing checklist (`tests/manual-new-release-tests.md`)
+- Pre-release testing checklist (`tests/manual-pre-release-testing.md`)
+
+### Changed
+- Task specs moved from `.claude/` to `.claude/specs/`
+
 ## [0.1.4] - 2026-04-08
 
 ### Fixed
