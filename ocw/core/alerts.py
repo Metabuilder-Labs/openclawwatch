@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from ocw.core.config import AlertChannelConfig, OcwConfig
+from ocw.core.config import AlertChannelConfig, OcwConfig, resolve_effective_budget
 from ocw.core.models import Alert, AlertType, Severity
 from ocw.otel.semconv import OcwAttributes
 from ocw.utils.formatting import console, severity_colour
@@ -272,16 +272,8 @@ class AlertEngine:
 
     def _check_cost_budgets(self, session: SessionRecord) -> None:
         """Check daily and session cost thresholds against the agent's budget config."""
-        agent_cfg = self.config.agents.get(session.agent_id)
-        # Resolve budget: per-agent overrides defaults
-        if agent_cfg:
-            budget = agent_cfg.budget
-        elif hasattr(self.config, "defaults"):
-            budget = self.config.defaults.budget
-        else:
-            return
-        from ocw.core.config import BudgetConfig
-        if budget == BudgetConfig():
+        budget = resolve_effective_budget(session.agent_id, self.config)
+        if budget.daily_usd is None and budget.session_usd is None:
             return
 
         # Session budget

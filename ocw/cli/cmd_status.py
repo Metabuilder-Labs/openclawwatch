@@ -4,6 +4,7 @@ import json
 
 import click
 
+from ocw.core.config import resolve_effective_budget
 from ocw.core.models import AlertFilters
 from ocw.utils.formatting import console, format_cost, format_tokens, status_icon
 from ocw.utils.time_parse import utcnow
@@ -67,15 +68,10 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 
         today_cost = db.get_daily_cost(aid, utcnow().date())
 
-        # Budget from config: per-agent overrides defaults
+        # Budget from config: per-field merge of agent overrides + defaults
         config = ctx.obj["config"]
-        agent_config = config.agents.get(aid)
-        if agent_config and agent_config.budget.daily_usd is not None:
-            daily_limit = agent_config.budget.daily_usd
-        elif hasattr(config, "defaults") and config.defaults.budget.daily_usd is not None:
-            daily_limit = config.defaults.budget.daily_usd
-        else:
-            daily_limit = None
+        effective = resolve_effective_budget(aid, config)
+        daily_limit = effective.daily_usd
 
         # Active alerts
         alerts = db.get_alerts(AlertFilters(agent_id=aid, unread=True, limit=50))

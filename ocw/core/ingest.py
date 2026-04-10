@@ -149,6 +149,11 @@ class IngestPipeline:
                     self.drift_detector.on_session_end(span.agent_id, session)
                 except Exception as exc:
                     logger.warning("DriftDetector hook failed: %s", exc)
+            if self.alert_engine:
+                try:
+                    self.alert_engine.evaluate_session_end(session)
+                except Exception as exc:
+                    logger.warning("AlertEngine session-end hook failed: %s", exc)
 
         # 6. Post-ingest hooks (never let hook errors kill the pipeline)
         self._run_hooks(span)

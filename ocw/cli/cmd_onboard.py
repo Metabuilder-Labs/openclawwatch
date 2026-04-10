@@ -154,15 +154,28 @@ def _onboard_claude_code(
         AgentConfig, BudgetConfig, OcwConfig, SecurityConfig, load_config, write_config,
     )
 
-    project_name = Path.cwd().name.lower()
+    project_name = _derive_project_name()
     agent_id = f"claude-code-{project_name}"
     existing = find_config_file()
 
+    if budget is None:
+        budget = click.prompt(
+            "Daily budget in USD (0 = no limit, default 5)",
+            type=float, default=5.0, show_default=False,
+        )
+
     if existing and not force:
         config = load_config(str(existing))
+        if agent_id not in config.agents:
+            config.agents[agent_id] = AgentConfig()
+        if budget and budget > 0:
+            config.agents[agent_id].budget.daily_usd = budget
+        config_path = Path(existing)
+        write_config(config, config_path)
+        console.print(f"  ocw config updated: {config_path}")
     else:
         ingest_secret = secrets.token_hex(32)
-        daily_usd = budget if budget and budget > 0 else 5.0
+        daily_usd = budget if budget and budget > 0 else None
         agents = {agent_id: AgentConfig(budget=BudgetConfig(daily_usd=daily_usd))}
         config = OcwConfig(
             version="1",
@@ -248,6 +261,8 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
     console.print(f"  Project settings:    {project_settings_path}")
     console.print(f"  Shell env:           ~/.zshrc (harness-compatible endpoint)")
     console.print(f"  Agent ID:            {agent_id}")
+    if budget and budget > 0:
+        console.print(f"  Daily budget:        ${budget:.2f}")
     console.print(f"  OTLP endpoint:       http://127.0.0.1:{port} (native)")
     console.print(f"                       http://host.docker.internal:{port} (harness)")
     if secret:
@@ -257,6 +272,30 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
         console.print("[dim]Start the server:[/dim]  ocw serve")
     console.print("[dim]Restart Claude Code for settings to take effect.[/dim]")
     console.print(f"[dim]Then run:[/dim]  ocw status --agent {agent_id}")
+
+
+def _derive_project_name() -> str:
+    """
+    Derive a meaningful project name for the agent ID.
+    Priority: git remote origin repo name > current folder name.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            # Extract repo name from URL — handles both https and ssh forms
+            # e.g. https://github.com/org/my-repo.git  -> my-repo
+            #      git@github.com:org/my-repo.git       -> my-repo
+            name = url.rstrip("/").split("/")[-1].split(":")[-1]
+            name = name.removesuffix(".git").lower()
+            if name:
+                return name
+    except Exception:
+        pass
+    return Path.cwd().name.lower()
 
 
 def _install_daemon() -> str | None:

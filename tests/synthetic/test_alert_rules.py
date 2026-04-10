@@ -19,6 +19,7 @@ from ocw.core.config import (
     AlertChannelConfig,
     AlertsConfig,
     BudgetConfig,
+    DefaultsConfig,
     OcwConfig,
     SensitiveAction,
 )
@@ -176,6 +177,21 @@ def test_cost_budget_daily_fires_when_exceeded():
     db.insert_alert.assert_called()
     alert: Alert = db.insert_alert.call_args[0][0]
     assert alert.type == AlertType.COST_BUDGET_DAILY
+
+
+def test_cost_budget_daily_inherits_from_defaults_when_agent_has_only_session():
+    """Regression: agent with session_usd but no daily_usd should still enforce defaults.daily_usd."""
+    config = _make_config(agents={
+        "test-agent": AgentConfig(budget=BudgetConfig(session_usd=5.0)),
+    })
+    config.defaults = DefaultsConfig(budget=BudgetConfig(daily_usd=10.0))
+    engine, db = _make_engine(config)
+    db.get_daily_cost.return_value = 12.50
+    session = make_session(agent_id="test-agent")
+    engine.evaluate_session_end(session)
+    alerts = [call[0][0] for call in db.insert_alert.call_args_list]
+    daily_alerts = [a for a in alerts if a.type == AlertType.COST_BUDGET_DAILY]
+    assert len(daily_alerts) == 1
 
 
 # ── Session duration ────���─────────────────────────────────────���────────────

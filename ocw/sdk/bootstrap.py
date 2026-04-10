@@ -47,10 +47,22 @@ def ensure_initialised() -> None:
             from ocw.core.db import open_db
             from ocw.core.ingest import IngestPipeline
             from ocw.core.cost import CostEngine
+            from ocw.core.alerts import AlertEngine
+            from ocw.core.schema_validator import SchemaValidator
+            from ocw.core.drift import DriftDetector
 
             db = open_db(config.storage)
             cost_engine = CostEngine(db)
-            pipeline = IngestPipeline(db, config, cost_engine=cost_engine)
+            alert_engine = AlertEngine(db, config)
+            schema_validator = SchemaValidator(db, alert_engine, config)
+            drift_detector = DriftDetector(db, alert_engine, config)
+            pipeline = IngestPipeline(
+                db, config,
+                cost_engine=cost_engine,
+                alert_engine=alert_engine,
+                schema_validator=schema_validator,
+                drift_detector=drift_detector,
+            )
             _provider = build_tracer_provider(config, pipeline)
             _initialised = True
 

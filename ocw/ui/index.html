@@ -416,6 +416,7 @@ tr.clickable:hover td.chevron { color: var(--accent); }
   <a href="#/cost" class="nav-link" data-view="cost"><span class="icon">$</span> Cost</a>
   <a href="#/alerts" class="nav-link" data-view="alerts"><span class="icon">!</span> Alerts</a>
   <a href="#/drift" class="nav-link" data-view="drift"><span class="icon">~</span> Drift</a>
+  <a href="#/budget" class="nav-link" data-view="budget"><span class="icon">$</span> Budget</a>
   <div class="sidebar-footer">
     <a href="/docs" target="_blank" class="footer-link"><span class="icon">&#x2737;</span> API docs</a>
     <a href="https://github.com/Metabuilder-Labs/openclawwatch" target="_blank" class="footer-link"><span class="icon">&#x2197;</span> GitHub</a>
@@ -445,6 +446,16 @@ async function api(path, params = {}) {
   const headers = {};
   if (API_KEY) headers['Authorization'] = 'Bearer ' + API_KEY;
   const resp = await fetch(url, { headers });
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  return resp.json();
+}
+
+async function apiPost(path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (API_KEY) headers['Authorization'] = 'Bearer ' + API_KEY;
+  const resp = await fetch('/api/v1' + path, {
+    method: 'POST', headers, body: JSON.stringify(body),
+  });
   if (!resp.ok) throw new Error(`API ${resp.status}`);
   return resp.json();
 }
@@ -944,6 +955,155 @@ function DriftView() {
 }
 
 // ============================
+// Budget View
+// ============================
+function BudgetRow({ scope, label, daily, session, effectiveDaily, effectiveSession, onSave }) {
+  const [dailyVal, setDailyVal] = useState(daily != null ? String(daily) : '');
+  const [sessionVal, setSessionVal] = useState(session != null ? String(session) : '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave(scope, dailyVal, sessionVal);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      alert('Save failed: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const dailyPlaceholder = (effectiveDaily != null && daily == null)
+    ? `default: $${effectiveDaily}` : 'no limit';
+  const sessionPlaceholder = (effectiveSession != null && session == null)
+    ? `default: $${effectiveSession}` : 'no limit';
+
+  return html`
+    <tr>
+      <td class="mono">${label}</td>
+      <td>
+        <input type="number" min="0" step="0.01" placeholder=${dailyPlaceholder}
+          value=${dailyVal} onInput=${e => setDailyVal(e.target.value)}
+          style="width:120px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--text);font-size:13px" />
+      </td>
+      <td>
+        <input type="number" min="0" step="0.01" placeholder=${sessionPlaceholder}
+          value=${sessionVal} onInput=${e => setSessionVal(e.target.value)}
+          style="width:120px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--text);font-size:13px" />
+      </td>
+      <td>
+        <button class="btn" onClick=${save} disabled=${saving}
+          style="padding:4px 12px;font-size:12px">
+          ${saving ? 'Saving...' : saved ? '\u2713 Saved' : 'Save'}
+        </button>
+      </td>
+    </tr>
+  `;
+}
+
+function BudgetView() {
+  const [data, setData] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [error, setError] = useState(null);
+
+  const load = () => Promise.all([
+    api('/budget'),
+    api('/alerts', { type: 'cost_budget_daily', since: '24h' })
+      .then(d => d.alerts || [])
+      .catch(() => []),
+    api('/alerts', { type: 'cost_budget_session', since: '24h' })
+      .then(d => d.alerts || [])
+      .catch(() => []),
+  ]).then(([budget, daily, session]) => {
+    setData(budget);
+    setAlerts([...daily, ...session].sort((a, b) => b.fired_at.localeCompare(a.fired_at)));
+  }).catch(e => setError(e.message));
+
+  useEffect(() => { load(); }, []);
+
+  const handleSave = async (scope, dailyStr, sessionStr) => {
+    const daily = dailyStr !== '' ? parseFloat(dailyStr) : 0;
+    const session = sessionStr !== '' ? parseFloat(sessionStr) : 0;
+    const updated = await apiPost('/budget', {
+      scope,
+      daily_usd: dailyStr !== '' ? daily : null,
+      session_usd: sessionStr !== '' ? session : null,
+    });
+    setData(updated);
+  };
+
+  if (error) return html`<div class="empty" style="color:var(--error)">${error}</div>`;
+  if (!data) return html`<div class="empty">Loading...</div>`;
+
+  const agentEntries = Object.entries(data.agents || {});
+
+  return html`
+    <div class="page-title">Budget</div>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Budget limits</div>
+    <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">
+      Set 0 to remove a limit. Changes are written to your config file immediately.
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Scope</th><th>Daily (USD)</th><th>Per-session (USD)</th><th></th></tr></thead>
+      <tbody>
+        <${BudgetRow}
+          scope="defaults"
+          label="defaults"
+          daily=${data.defaults.daily_usd}
+          session=${data.defaults.session_usd}
+          onSave=${handleSave}
+        />
+        ${agentEntries.map(([id, b]) => html`
+          <${BudgetRow}
+            key=${id}
+            scope=${id}
+            label=${id}
+            daily=${b.configured.daily_usd}
+            session=${b.configured.session_usd}
+            effectiveDaily=${b.effective.daily_usd}
+            effectiveSession=${b.effective.session_usd}
+            onSave=${handleSave}
+          />
+        `)}
+        ${agentEntries.length === 0 ? html`
+          <tr><td colspan="4" style="color:var(--text-dim);font-size:13px;padding:12px 0">
+            No agents configured yet. Run your agent once to register it.
+          </td></tr>
+        ` : null}
+      </tbody>
+    </table></div>
+
+    ${alerts.length === 0
+      ? html`<div class="empty" style="margin-top:20px">No budget alerts in the last 24h.</div>`
+      : html`
+        <div style="margin-top:24px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--error)">
+            Budget alerts (last 24h)
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Severity</th><th>Type</th><th>Agent</th><th>Detail</th></tr></thead>
+            <tbody>
+              ${alerts.map(a => html`
+                <tr>
+                  <td>${fmtAgo(a.fired_at)}</td>
+                  <td><span class="badge badge-${a.severity}">${a.severity}</span></td>
+                  <td>${friendlyAlertType(a.type)}</td>
+                  <td class="mono">${a.agent_id || '-'}</td>
+                  <td style="color:var(--text-dim);font-size:12px">${a.detail.message || ''}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table></div>
+        </div>
+      `}
+  `;
+}
+
+// ============================
 // App Router
 // ============================
 function App() {
@@ -976,6 +1136,7 @@ function App() {
     case 'cost': return html`<${CostView} />`;
     case 'alerts': return html`<${AlertsView} />`;
     case 'drift': return html`<${DriftView} />`;
+    case 'budget': return html`<${BudgetView} />`;
     default: return html`<div class="empty">Page not found.</div>`;
   }
 }

@@ -319,3 +319,37 @@ def _serialise(config: OcwConfig) -> dict:
     d["agents"] = agents_out
 
     return d
+
+
+def resolve_effective_budget(agent_id: str, config: OcwConfig) -> BudgetConfig:
+    """
+    Return the effective budget for an agent, merging per-agent overrides
+    with global defaults on a per-field basis.
+
+    Each field (daily_usd, session_usd) independently uses the agent value
+    if set, otherwise falls back to the defaults value.
+    """
+    defaults = config.defaults.budget
+    agent_cfg = config.agents.get(agent_id)
+    if agent_cfg is None:
+        return BudgetConfig(
+            daily_usd=defaults.daily_usd,
+            session_usd=defaults.session_usd,
+        )
+    ab = agent_cfg.budget
+    return BudgetConfig(
+        daily_usd=ab.daily_usd if ab.daily_usd is not None else defaults.daily_usd,
+        session_usd=ab.session_usd if ab.session_usd is not None else defaults.session_usd,
+    )
+
+
+def validate_budget_value(value: float, field_name: str) -> float | None:
+    """
+    Validate and normalise a budget value from user input.
+
+    Positive values are returned as-is. Zero means 'remove limit' (returns None).
+    Negative values raise ValueError.
+    """
+    if value < 0:
+        raise ValueError(f"Budget {field_name} must be non-negative, got {value}")
+    return value if value > 0 else None

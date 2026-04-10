@@ -347,7 +347,7 @@ def test_onboard_claude_code_writes_settings(runner, tmp_path):
     with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
          patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
          patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
-        result = runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"])
+        result = runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon", "--budget", "5.0"])
 
     assert result.exit_code == 0
     assert settings_path.exists()
@@ -371,7 +371,7 @@ def test_onboard_claude_code_preserves_existing(runner, tmp_path):
     with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
          patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
          patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
-        runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"])
+        runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon", "--budget", "5.0"])
 
     data = json.loads(settings_path.read_text())
     # Original top-level key preserved
@@ -391,10 +391,87 @@ def test_onboard_claude_code_creates_ocw_config(runner, tmp_path):
          patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
          patch("ocw.cli.cmd_onboard.click.confirm", return_value=False), \
          patch("ocw.core.config.write_config") as mock_write:
-        runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"])
+        runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon", "--budget", "5.0"])
 
-    # write_config should have been called with an OcwConfig containing project-specific agent
+    # write_config should have been called with an OcwConfig containing a claude-code-* agent
     assert mock_write.called
     saved_config = mock_write.call_args[0][0]
-    project_name = Path.cwd().name.lower()
-    assert f"claude-code-{project_name}" in saved_config.agents
+    assert any(k.startswith("claude-code-") for k in saved_config.agents)
+
+
+def test_onboard_claude_code_prompts_for_budget(runner, tmp_path):
+    """Budget prompt is shown when --budget is not passed."""
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
+         patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
+         patch("ocw.cli.cmd_onboard.click.confirm", return_value=False), \
+         patch("ocw.core.config.write_config") as mock_write:
+        result = runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"], input="7.0\n")
+
+    assert result.exit_code == 0
+    assert mock_write.called
+    saved_config = mock_write.call_args[0][0]
+    agent_id = next(k for k in saved_config.agents if k.startswith("claude-code-"))
+    assert saved_config.agents[agent_id].budget.daily_usd == 7.0
+
+
+def test_budget_show_displays_defaults(runner, db, config):
+    """ocw budget with no flags shows current budgets."""
+    result = _invoke(runner, db, config, ["budget"])
+    assert result.exit_code == 0
+    assert "5.00" in result.output  # fixture has daily_usd=5.0
+
+
+def test_budget_set_global_writes_config(runner, db, config, tmp_path):
+    """ocw budget --daily updates global defaults and writes config."""
+    config_file = tmp_path / "config.toml"
+    config_file.write_text("")
+
+    with patch("ocw.cli.main.load_config", return_value=config), \
+         patch("ocw.cli.main.open_db", return_value=db), \
+         patch("ocw.cli.cmd_budget.find_config_file", return_value=str(config_file)), \
+         patch("ocw.cli.cmd_budget.write_config") as mock_write:
+        result = runner.invoke(cli, ["budget", "--daily", "8.0"])
+
+    assert result.exit_code == 0
+    assert mock_write.called
+    saved_config = mock_write.call_args[0][0]
+    assert saved_config.defaults.budget.daily_usd == 8.0
+
+
+def test_budget_set_agent_writes_config(runner, db, config, tmp_path):
+    """ocw budget --agent --daily --session updates per-agent budget."""
+    config_file = tmp_path / "config.toml"
+    config_file.write_text("")
+
+    with patch("ocw.cli.main.load_config", return_value=config), \
+         patch("ocw.cli.main.open_db", return_value=db), \
+         patch("ocw.cli.cmd_budget.find_config_file", return_value=str(config_file)), \
+         patch("ocw.cli.cmd_budget.write_config") as mock_write:
+        result = runner.invoke(
+            cli, ["budget", "--agent", "test-agent", "--daily", "3.0", "--session", "0.25"]
+        )
+
+    assert result.exit_code == 0
+    assert mock_write.called
+    saved_config = mock_write.call_args[0][0]
+    assert saved_config.agents["test-agent"].budget.daily_usd == 3.0
+    assert saved_config.agents["test-agent"].budget.session_usd == 0.25
+
+
+def test_budget_set_negative_daily_rejected(runner, db, config, tmp_path):
+    """ocw budget --daily -5 should error, not silently clear the limit."""
+    config_file = tmp_path / "config.toml"
+    config_file.write_text("")
+
+    with patch("ocw.cli.main.load_config", return_value=config), \
+         patch("ocw.cli.main.open_db", return_value=db), \
+         patch("ocw.cli.cmd_budget.find_config_file", return_value=str(config_file)), \
+         patch("ocw.cli.cmd_budget.write_config") as mock_write:
+        result = runner.invoke(cli, ["budget", "--daily", "-5"])
+
+    assert result.exit_code != 0
+    assert "non-negative" in result.output.lower()
+    mock_write.assert_not_called()
