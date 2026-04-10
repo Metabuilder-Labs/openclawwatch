@@ -61,6 +61,21 @@ class CostEngine:
         update span.cost_usd in DB, update session.total_cost_usd in DB.
         No-op if tokens are missing or zero.
         """
+        if span.cost_usd is not None:
+            # Preserve source-reported cost (e.g. Claude Code's cost_usd).
+            if hasattr(self.db, 'conn'):
+                self.db.conn.execute(
+                    "UPDATE spans SET cost_usd = ? WHERE span_id = ?",
+                    [span.cost_usd, span.span_id],
+                )
+                if span.session_id:
+                    self.db.conn.execute(
+                        "UPDATE sessions SET total_cost_usd = COALESCE(total_cost_usd, 0) + ? "
+                        "WHERE session_id = ?",
+                        [span.cost_usd, span.session_id],
+                    )
+            return
+
         if not span.provider or not span.model:
             return
         input_tokens = span.input_tokens or 0

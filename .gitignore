@@ -41,3 +41,6 @@ sdk-ts/dist/
 .env.*
 ocw.toml
 .ocw/
+
+# Claude Code
+.claude/

@@ -85,7 +85,7 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 
         agent_data = {
             "agent_id": aid,
-            "status": session.status if session else "idle",
+            "status": session.effective_status if session else "idle",
             "session_id": session.session_id if session else None,
             "cost_today": today_cost,
             "daily_limit": daily_limit,
@@ -112,7 +112,7 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 def _print_agent_status(data: dict, active_alerts: list, session: object | None) -> None:
     status = data["status"]
     icon = status_icon(status)
-    style = "green" if status == "active" else "dim"
+    style = "green" if status == "active" else "yellow" if status == "stale" else "dim"
 
     duration_str = ""
     if session and hasattr(session, "duration_seconds") and session.duration_seconds:

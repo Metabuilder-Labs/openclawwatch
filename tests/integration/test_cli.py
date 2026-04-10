@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -211,3 +212,189 @@ def test_since_flag_parses_all_formats(runner, db, config):
     for since_val in ["30m", "1h", "7d", "2026-03-01"]:
         result = _invoke(runner, db, config, ["traces", "--since", since_val, "--json"])
         assert result.exit_code == 0, f"Failed for --since {since_val}: {result.output}"
+
+
+# -- drift tests --
+
+def _seed_baseline(db, agent_id="test-agent"):
+    """Insert a DriftBaseline into the DB."""
+    from ocw.core.models import DriftBaseline
+    baseline = DriftBaseline(
+        agent_id=agent_id,
+        sessions_sampled=15,
+        computed_at=utcnow(),
+        avg_input_tokens=12400.0,
+        stddev_input_tokens=3200.0,
+        avg_output_tokens=1800.0,
+        stddev_output_tokens=400.0,
+        avg_session_duration_s=145.0,
+        stddev_session_duration=32.0,
+        avg_tool_call_count=24.0,
+        stddev_tool_call_count=8.0,
+        common_tool_sequences=[["Read", "Write", "Bash"]],
+    )
+    db.upsert_baseline(baseline)
+    return baseline
+
+
+def test_drift_no_baselines_exits_0(runner, db, config):
+    result = _invoke(runner, db, config, ["drift", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["drifted"] is False
+    assert data["agents"] == []
+
+
+def test_drift_with_baseline_no_violations(runner, db, config):
+    """Normal session (tokens within threshold) -> exit 0."""
+    # Use a baseline without tool sequences so Jaccard doesn't fire
+    from ocw.core.models import DriftBaseline
+    baseline = DriftBaseline(
+        agent_id="test-agent",
+        sessions_sampled=15,
+        computed_at=utcnow(),
+        avg_input_tokens=12400.0,
+        stddev_input_tokens=3200.0,
+        avg_output_tokens=1800.0,
+        stddev_output_tokens=400.0,
+        avg_session_duration_s=145.0,
+        stddev_session_duration=32.0,
+        avg_tool_call_count=24.0,
+        stddev_tool_call_count=8.0,
+        common_tool_sequences=None,  # skip Jaccard check
+    )
+    db.upsert_baseline(baseline)
+    # Session with tokens close to baseline mean -> no drift
+    session = make_session(
+        agent_id="test-agent",
+        input_tokens=12000,  # close to 12400 mean
+        output_tokens=1750,
+        tool_call_count=22,
+        status="completed",
+        duration_seconds=150.0,
+    )
+    db.upsert_session(session)
+
+    result = _invoke(runner, db, config, ["drift"])
+    assert result.exit_code == 0
+
+
+def test_drift_with_violations_exits_1(runner, db, config):
+    """Outlier session (far from baseline) -> exit 1."""
+    _seed_baseline(db)
+    # Session with very high input tokens -> drift
+    session = make_session(
+        agent_id="test-agent",
+        input_tokens=50000,  # >> 12400 mean, z >> 2.0
+        output_tokens=1800,
+        tool_call_count=24,
+        status="completed",
+        duration_seconds=145.0,
+    )
+    db.upsert_session(session)
+
+    result = _invoke(runner, db, config, ["drift"])
+    assert result.exit_code == 1
+
+
+def test_drift_json_output(runner, db, config):
+    _seed_baseline(db)
+    session = make_session(
+        agent_id="test-agent",
+        input_tokens=50000,
+        output_tokens=1800,
+        status="completed",
+        duration_seconds=145.0,
+    )
+    db.upsert_session(session)
+
+    result = _invoke(runner, db, config, ["drift", "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert "agents" in data
+    assert "drifted" in data
+    assert data["drifted"] is True
+    assert len(data["agents"]) == 1
+    agent_data = data["agents"][0]
+    assert agent_data["agent_id"] == "test-agent"
+    assert "violations" in agent_data
+    assert "metrics" in agent_data
+
+
+def test_drift_agent_filter(runner, db, config):
+    """--agent filters output to the specified agent."""
+    _seed_baseline(db, agent_id="test-agent")
+    _seed_baseline(db, agent_id="other-agent")
+
+    session = make_session(agent_id="test-agent", status="completed")
+    db.upsert_session(session)
+
+    result = _invoke(runner, db, config, ["drift", "--agent", "other-agent", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    # Only other-agent queried, no sessions -> no results
+    assert all(a["agent_id"] == "other-agent" for a in data["agents"])
+
+
+# -- onboard --claude-code tests --
+
+def test_onboard_claude_code_writes_settings(runner, tmp_path):
+    """--claude-code writes env vars to ~/.claude/settings.json."""
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    settings_path = fake_home / ".claude" / "settings.json"
+
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
+         patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
+         patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
+        result = runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"])
+
+    assert result.exit_code == 0
+    assert settings_path.exists()
+    data = json.loads(settings_path.read_text())
+    assert "env" in data
+    env = data["env"]
+    assert env["CLAUDE_CODE_ENABLE_TELEMETRY"] == "1"
+    assert env["OTEL_LOGS_EXPORTER"] == "otlp"
+    assert "OTEL_EXPORTER_OTLP_ENDPOINT" in env
+
+
+def test_onboard_claude_code_preserves_existing(runner, tmp_path):
+    """Existing settings.json keys are not clobbered."""
+    fake_home = tmp_path / "home"
+    (fake_home / ".claude").mkdir(parents=True)
+    settings_path = fake_home / ".claude" / "settings.json"
+    settings_path.write_text(
+        json.dumps({"theme": "dark", "env": {"MY_VAR": "preserved"}}) + "\n"
+    )
+
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
+         patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
+         patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
+        runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"])
+
+    data = json.loads(settings_path.read_text())
+    # Original top-level key preserved
+    assert data.get("theme") == "dark"
+    # Original env var preserved
+    assert data["env"].get("MY_VAR") == "preserved"
+    # New env vars added
+    assert data["env"].get("CLAUDE_CODE_ENABLE_TELEMETRY") == "1"
+
+
+def test_onboard_claude_code_creates_ocw_config(runner, tmp_path):
+    """ocw config is created when none exists."""
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
+         patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
+         patch("ocw.cli.cmd_onboard.click.confirm", return_value=False), \
+         patch("ocw.core.config.write_config") as mock_write:
+        runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon"])
+
+    # write_config should have been called with an OcwConfig containing project-specific agent
+    assert mock_write.called
+    saved_config = mock_write.call_args[0][0]
+    project_name = Path.cwd().name.lower()
+    assert f"claude-code-{project_name}" in saved_config.agents

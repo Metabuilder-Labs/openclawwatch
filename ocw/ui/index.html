@@ -140,6 +140,7 @@ code, .mono {
 .status-dot.completed { background: var(--success); }
 .status-dot.idle { background: var(--text-dim); }
 .status-dot.error { background: var(--error); }
+.status-dot.stale { background: var(--warn); }
 .card-row {
   display: flex;
   justify-content: space-between;
@@ -202,6 +203,7 @@ tr.clickable:hover td.chevron { color: var(--accent); }
 .badge-ok, .badge-completed { background: rgba(34,197,94,0.15); color: var(--success); }
 .badge-error { background: rgba(239,68,68,0.15); color: var(--error); }
 .badge-active { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-stale { background: rgba(245,158,11,0.15); color: var(--warn); }
 .badge-critical { background: rgba(239,68,68,0.15); color: var(--error); }
 .badge-warning { background: rgba(245,158,11,0.15); color: var(--warn); }
 .badge-info { background: rgba(61,142,255,0.15); color: var(--info); }
@@ -269,6 +271,7 @@ tr.clickable:hover td.chevron { color: var(--accent); }
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
+  right: auto;
   background: #1a2236;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -283,6 +286,7 @@ tr.clickable:hover td.chevron { color: var(--accent); }
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 .wf-bar-wrap:hover .wf-tip { display: block; }
+.wf-bar-wrap.tip-flip .wf-tip { left: auto; right: 0; }
 .wf-bar {
   position: absolute;
   height: 100%;
@@ -721,7 +725,7 @@ function TraceDetailView({ traceId }) {
           <div class="wf-row ${selected === s.span_id ? 'selected' : ''}" onClick=${() => setSelected(s.span_id)}>
             <div class="wf-label" style="width:${labelW}px;padding-left:${depth * 16 + 8}px">${friendly}</div>
             <div class="wf-track">
-              <div class="wf-bar-wrap" style="left:${left}%;width:${width}%">
+              <div class="wf-bar-wrap${left > 50 ? ' tip-flip' : ''}" style="left:${left}%;width:${width}%">
                 <div class="wf-bar ${kind}" style="width:100%">${barLabel}</div>
                 <div class="wf-tip">${tooltip}</div>
               </div>

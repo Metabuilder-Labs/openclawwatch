@@ -36,5 +36,28 @@ async def otlp_metrics(request: Request) -> JSONResponse:
 
 @router.post("/v1/logs")
 async def otlp_logs(request: Request) -> JSONResponse:
-    """Stub — accept and discard OTLP logs to avoid noisy client warnings."""
-    return JSONResponse(status_code=200, content={"status": "ok"})
+    """Accept OTLP JSON logs — primary ingest path for Claude Code telemetry."""
+    from ocw.api.routes.logs import parse_log_records
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON body"})
+
+    if not isinstance(body, dict) or "resourceLogs" not in body:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Expected OTLP JSON with 'resourceLogs' key"},
+        )
+
+    pipeline = request.app.state.pipeline
+    ingested, rejections = parse_log_records(body, pipeline)
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ingested": ingested,
+            "rejected": len(rejections),
+            "rejections": rejections,
+        },
+    )
