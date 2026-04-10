@@ -54,6 +54,7 @@ crewai    = ["crewai>=0.28"]
 autogen   = ["pyautogen>=0.2"]
 litellm   = ["litellm>=1.40"]
 dev       = ["pytest", "pytest-asyncio", "httpx", "ruff", "mypy"]
+mcp       = ["fastmcp"]
 
 [project.scripts]
 ocw = "ocw.cli.main:cli"
