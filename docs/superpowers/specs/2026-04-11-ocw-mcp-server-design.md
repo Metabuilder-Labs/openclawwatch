@@ -84,7 +84,7 @@ Or manually in `~/.claude.json`:
 
 ## Tools
 
-Ten tools total — nine reads, one write.
+Twelve tools total — ten reads, two writes.
 
 ### Self-monitoring
 
@@ -98,6 +98,7 @@ Ten tools total — nine reads, one write.
 | Tool | Parameters | Returns |
 |---|---|---|
 | `list_agents` | — | all known agent IDs with status, cost today, active alert count |
+| `list_active_sessions` | — | all currently active sessions across all agents — one row per session, not per agent |
 | `get_cost_summary` | `agent_id?: str`, `since?: str`, `group_by?: str = "day"` | cost rows grouped by day/agent/model, running total |
 | `list_alerts` | `agent_id?: str`, `severity?: str`, `unread?: bool = False` | alert history — type, severity, title, detail, timestamps |
 | `list_traces` | `agent_id?: str`, `since?: str`, `limit?: int = 20` | recent traces — cost, duration, span count, status |
@@ -105,11 +106,16 @@ Ten tools total — nine reads, one write.
 | `get_tool_stats` | `agent_id?: str`, `since?: str` | per-tool call counts and avg duration |
 | `get_drift_report` | `agent_id?: str` | baseline stats vs latest session |
 
+`list_agents` groups by `agent_id` — two parallel Claude Code sessions in the same project appear as one agent entry. Use `list_active_sessions` when you need a row per running session.
+
 ### Write
 
 | Tool | Parameters | Returns |
 |---|---|---|
 | `acknowledge_alert` | `alert_id: str` | confirmation dict or `{"error": ...}` |
+| `setup_project` | `agent_id?: str` | writes `.claude/settings.json` in cwd with `OTEL_RESOURCE_ATTRIBUTES=service.name=<agent_id>`, adds agent entry to OCW config. Returns `{"agent_id": ..., "settings_path": ..., "warning"?: ...}` |
+
+`setup_project` derives the agent ID automatically from the git remote URL or folder name (same logic as `ocw onboard --claude-code`), or accepts an explicit `agent_id` override. It only configures the **client side** (which `service.name` this project reports). It does not start `ocw serve` — if no daemon is running, telemetry won't flow. The tool warns if the global OTLP endpoint is not yet configured in `~/.claude/settings.json`.
 
 `since` parameters accept human-readable strings (`"24h"`, `"7d"`, `"2026-04-01"`) parsed by the existing `parse_since()` utility in `ocw/utils/time_parse.py`.
 
