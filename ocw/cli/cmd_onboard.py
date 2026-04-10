@@ -259,7 +259,7 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
     console.print("[bold green]Claude Code observability configured.[/bold green]")
     console.print(f"  Global settings:     {global_settings_path}")
     console.print(f"  Project settings:    {project_settings_path}")
-    console.print(f"  Shell env:           ~/.zshrc (harness-compatible endpoint)")
+    console.print("  Shell env:           ~/.zshrc (harness-compatible endpoint)")
     console.print(f"  Agent ID:            {agent_id}")
     if budget and budget > 0:
         console.print(f"  Daily budget:        ${budget:.2f}")
