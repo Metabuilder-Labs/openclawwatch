@@ -55,12 +55,14 @@ Install: `pip install openclawwatch[mcp]`. Not included in the default install �
 On startup, the server:
 1. Calls `find_config_file()` to discover `ocw.toml`
 2. Loads `OcwConfig` from that path
-3. Opens `DuckDBBackend(config.storage.path)`
-4. Holds one DB instance for the lifetime of the process
+3. Opens the DuckDB file in **read-only mode**: `duckdb.connect(str(Path(config.storage.path).expanduser()), read_only=True)`
+4. Holds that read-only connection for the lifetime of the process
 
-Does **not** call `ensure_initialised()` — that bootstraps OTel/TracerProvider, which the MCP server doesn't need (read-only, not emitting spans).
+Does **not** use `DuckDBBackend` directly — that class opens a read-write connection and will block when `ocw serve` already holds the file lock. `bootstrap.py:75-77` confirms this collision happens in production. Read-only mode avoids it entirely.
 
-DuckDB supports concurrent readers, so this is safe even when `ocw serve` is also running against the same file.
+Does **not** call `ensure_initialised()` — that bootstraps OTel/TracerProvider, which the MCP server doesn't need (not emitting spans).
+
+**`acknowledge_alert` exception:** the one write operation opens a short-lived separate read-write connection, executes the UPDATE, and closes it immediately. This is safe because `ocw serve`'s write connection is idle while the UPDATE runs (DuckDB serialises writers).
 
 ### Claude Code registration
 
@@ -97,7 +99,7 @@ Twelve tools total — ten reads, two writes.
 
 | Tool | Parameters | Returns |
 |---|---|---|
-| `list_agents` | — | historical agent summary — all known agent IDs with lifetime cost and last-seen time |
+| `list_agents` | — | historical agent summary — all known agent IDs with `last_seen` time and lifetime cost (JOIN to spans table) |
 | `list_active_sessions` | — | one row per currently running session across all agents — agent_id repeated if multiple sessions share the same project |
 | `get_cost_summary` | `agent_id?: str`, `since?: str`, `group_by?: str = "day"` | cost rows grouped by day/agent/model, running total |
 | `list_alerts` | `agent_id?: str`, `severity?: str`, `unread?: bool = False` | alert history — type, severity, title, detail, timestamps |
@@ -108,6 +110,8 @@ Twelve tools total — ten reads, two writes.
 
 `list_active_sessions` is the primary dashboard tool. It shows one row per running session — if a project has 4 parallel Claude Code windows, you see 4 rows all with the same `agent_id`. `list_agents` is for historical lookups, not live status.
 
+Both `list_active_sessions` and `list_agents` use the read-only `db.conn` directly (`SELECT * FROM sessions WHERE status = 'active'` and `SELECT agents.*, SUM(spans.cost_usd) FROM agents LEFT JOIN spans ...`) — these queries are not in the `StorageBackend` protocol.
+
 ### Write
 
 | Tool | Parameters | Returns |
@@ -116,6 +120,8 @@ Twelve tools total — ten reads, two writes.
 | `setup_project` | `agent_id?: str` | writes `.claude/settings.json` in cwd with `OTEL_RESOURCE_ATTRIBUTES=service.name=<agent_id>`, adds agent entry to OCW config. Returns `{"agent_id": ..., "settings_path": ..., "warning"?: ...}` |
 
 `setup_project` derives the agent ID automatically from the git remote URL or folder name (same logic as `ocw onboard --claude-code`), or accepts an explicit `agent_id` override. It only configures the **client side** (which `service.name` this project reports). It does not start `ocw serve` — if no daemon is running, telemetry won't flow. The tool warns if the global OTLP endpoint is not yet configured in `~/.claude/settings.json`.
+
+**cwd assumption:** writes to `Path.cwd() / ".claude" / "settings.json"`. Claude Code spawns MCP server subprocesses from the project's working directory, so `Path.cwd()` is the project root. This is the correct behaviour in all normal usage. An optional `project_path: str` parameter overrides `cwd` for edge cases (e.g. running from a subdirectory).
 
 `since` parameters accept human-readable strings (`"24h"`, `"7d"`, `"2026-04-01"`) parsed by the existing `parse_since()` utility in `ocw/utils/time_parse.py`.
 
@@ -149,14 +155,23 @@ Three cases — MCP servers must never crash on tool errors:
 
 ### `acknowledge_alert` write path
 
-The `StorageBackend` protocol does not expose an acknowledge method — this is consistent with other callers (e.g. `cmd_status.py`) that access `db.conn` directly for operations outside the protocol. The MCP server does the same:
+The `StorageBackend` protocol does not expose an acknowledge method. The MCP server opens a short-lived read-write connection for this one operation, consistent with the pattern used in `cmd_status.py`:
 
 ```python
-db.conn.execute(
-    "UPDATE alerts SET acknowledged = true WHERE alert_id = $1",
-    [alert_id],
-)
+db_path = Path(config.storage.path).expanduser()
+with duckdb.connect(str(db_path)) as write_conn:
+    result = write_conn.execute(
+        "SELECT alert_id FROM alerts WHERE alert_id = $1", [alert_id]
+    ).fetchone()
+    if result is None:
+        return {"error": f"Alert {alert_id} not found"}
+    write_conn.execute(
+        "UPDATE alerts SET acknowledged = true WHERE alert_id = $1",
+        [alert_id],
+    )
 ```
+
+This connection is opened and closed within the tool call, minimising the window during which both the MCP server and `ocw serve` hold write connections simultaneously.
 
 ---
 
