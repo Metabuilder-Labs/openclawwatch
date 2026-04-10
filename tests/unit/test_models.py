@@ -1,7 +1,8 @@
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch
 
 from ocw.core.models import (
-    SessionRecord, Severity, AlertType, SpanStatus, SpanKind,
+    SESSION_STALE_THRESHOLD, SessionRecord, Severity, AlertType, SpanStatus, SpanKind,
 )
 
 
@@ -32,6 +33,52 @@ class TestSessionRecord:
             started_at=datetime(2026, 3, 28, 12, 0, 0, tzinfo=timezone.utc),
         )
         assert session.status == "active"
+
+    def test_effective_status_completed_unchanged(self):
+        session = SessionRecord(
+            session_id="s1",
+            agent_id="a1",
+            started_at=datetime(2026, 3, 28, 12, 0, 0, tzinfo=timezone.utc),
+            status="completed",
+        )
+        assert session.effective_status == "completed"
+
+    def test_effective_status_active_recent_stays_active(self):
+        now = datetime(2026, 3, 28, 12, 10, 0, tzinfo=timezone.utc)
+        session = SessionRecord(
+            session_id="s1",
+            agent_id="a1",
+            started_at=datetime(2026, 3, 28, 12, 0, 0, tzinfo=timezone.utc),
+            ended_at=datetime(2026, 3, 28, 12, 9, 0, tzinfo=timezone.utc),
+            status="active",
+        )
+        with patch("ocw.utils.time_parse.utcnow", return_value=now):
+            assert session.effective_status == "active"
+
+    def test_effective_status_active_stale_becomes_stale(self):
+        now = datetime(2026, 3, 28, 12, 10, 0, tzinfo=timezone.utc)
+        session = SessionRecord(
+            session_id="s1",
+            agent_id="a1",
+            started_at=datetime(2026, 3, 28, 12, 0, 0, tzinfo=timezone.utc),
+            ended_at=datetime(2026, 3, 28, 12, 3, 0, tzinfo=timezone.utc),
+            status="active",
+        )
+        # 7 minutes since last activity > 5 minute threshold
+        with patch("ocw.utils.time_parse.utcnow", return_value=now):
+            assert session.effective_status == "stale"
+
+    def test_effective_status_uses_started_at_when_no_ended_at(self):
+        now = datetime(2026, 3, 28, 12, 10, 0, tzinfo=timezone.utc)
+        session = SessionRecord(
+            session_id="s1",
+            agent_id="a1",
+            started_at=datetime(2026, 3, 28, 12, 0, 0, tzinfo=timezone.utc),
+            status="active",
+        )
+        # 10 minutes since started_at, no ended_at
+        with patch("ocw.utils.time_parse.utcnow", return_value=now):
+            assert session.effective_status == "stale"
 
 
 class TestEnums:

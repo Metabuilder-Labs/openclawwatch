@@ -231,3 +231,41 @@ def test_user_prompt_span_id_matches_parent():
 
     assert prompt_span.span_id == _span_id_from_prompt(PROMPT_ID)
     assert tool_span.parent_span_id == prompt_span.span_id
+
+
+# ── Missing required fields ──────────────────────────────────────────────
+
+
+def test_api_request_missing_session_id_raises():
+    attrs = _req_attrs()
+    del attrs["session.id"]
+    with pytest.raises(KeyError):
+        _api_request_to_span(attrs, RESOURCE, NOW_NS)
+
+
+def test_api_request_missing_duration_ms_raises():
+    attrs = _req_attrs()
+    del attrs["duration_ms"]
+    with pytest.raises(KeyError):
+        _api_request_to_span(attrs, RESOURCE, NOW_NS)
+
+
+def test_tool_result_missing_tool_name_raises():
+    attrs = {
+        "session.id": SESSION_ID,
+        "prompt.id": PROMPT_ID,
+        "success": True,
+        "duration_ms": 10.0,
+    }
+    with pytest.raises(KeyError):
+        _tool_result_to_span(attrs, RESOURCE, NOW_NS)
+
+
+def test_api_error_missing_error_raises():
+    attrs = {
+        "session.id": SESSION_ID,
+        "model": "claude-sonnet-4-6",
+        "duration_ms": 100.0,
+    }
+    with pytest.raises(KeyError):
+        _api_error_to_span(attrs, RESOURCE, NOW_NS)

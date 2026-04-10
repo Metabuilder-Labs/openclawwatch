@@ -89,7 +89,7 @@ def cmd_drift(ctx: click.Context, agent: str | None, output_json: bool) -> None:
         all_results.append(agent_data)
 
         if not output_json:
-            _print_drift_table(aid, baseline, latest, result, threshold)
+            _print_drift_table(aid, baseline, latest, result, threshold, seq_threshold)
 
     if output_json:
         click.echo(json_mod.dumps(
@@ -146,7 +146,7 @@ def _build_metrics(baseline, session, result, threshold: float) -> list[dict]:
     return metrics
 
 
-def _print_drift_table(aid, baseline, session, result, threshold: float) -> None:
+def _print_drift_table(aid, baseline, session, result, threshold: float, seq_threshold: float = 0.4) -> None:
     """Render a Rich table for a single agent's drift state."""
     from ocw.core.drift import z_score
 
@@ -232,7 +232,7 @@ def _print_drift_table(aid, baseline, session, result, threshold: float) -> None
             "[bold red]DRIFT[/bold red]",
         )
     elif baseline.common_tool_sequences:
-        min_sim = 1.0 - 0.4
+        min_sim = 1.0 - seq_threshold
         table.add_row("tool_sequence", f"similarity >= {min_sim:.2f}", "--", "--", "[green]ok[/green]")
 
     console.print(table)
