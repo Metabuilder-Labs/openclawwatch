@@ -97,8 +97,8 @@ Twelve tools total — ten reads, two writes.
 
 | Tool | Parameters | Returns |
 |---|---|---|
-| `list_agents` | — | all known agent IDs with status, cost today, active alert count |
-| `list_active_sessions` | — | all currently active sessions across all agents — one row per session, not per agent |
+| `list_agents` | — | historical agent summary — all known agent IDs with lifetime cost and last-seen time |
+| `list_active_sessions` | — | one row per currently running session across all agents — agent_id repeated if multiple sessions share the same project |
 | `get_cost_summary` | `agent_id?: str`, `since?: str`, `group_by?: str = "day"` | cost rows grouped by day/agent/model, running total |
 | `list_alerts` | `agent_id?: str`, `severity?: str`, `unread?: bool = False` | alert history — type, severity, title, detail, timestamps |
 | `list_traces` | `agent_id?: str`, `since?: str`, `limit?: int = 20` | recent traces — cost, duration, span count, status |
@@ -106,7 +106,7 @@ Twelve tools total — ten reads, two writes.
 | `get_tool_stats` | `agent_id?: str`, `since?: str` | per-tool call counts and avg duration |
 | `get_drift_report` | `agent_id?: str` | baseline stats vs latest session |
 
-`list_agents` groups by `agent_id` — two parallel Claude Code sessions in the same project appear as one agent entry. Use `list_active_sessions` when you need a row per running session.
+`list_active_sessions` is the primary dashboard tool. It shows one row per running session — if a project has 4 parallel Claude Code windows, you see 4 rows all with the same `agent_id`. `list_agents` is for historical lookups, not live status.
 
 ### Write
 
