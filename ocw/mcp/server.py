@@ -678,13 +678,13 @@ def _tool_setup_project(
     # Derive agent_id if not provided
     if not agent_id:
         try:
-            result = subprocess.run(
+            git_proc = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
                 capture_output=True, text=True, timeout=3,
                 cwd=project_path or ".",
             )
-            if result.returncode == 0:
-                url = result.stdout.strip()
+            if git_proc.returncode == 0:
+                url = git_proc.stdout.strip()
                 name = url.rstrip("/").split("/")[-1].split(":")[-1]
                 name = name.removesuffix(".git").lower()
                 agent_id = f"claude-code-{name}" if name else None
