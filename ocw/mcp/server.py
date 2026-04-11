@@ -458,6 +458,62 @@ def _tool_setup_project(
     return result
 
 
+def _tool_open_dashboard(config) -> dict:
+    """Start ocw serve in the background if not running, return the dashboard URL."""
+    if config is None:
+        return _no_config()
+    import socket
+    import subprocess
+    import sys
+    import time
+
+    host = config.api.host
+    port = config.api.port
+    url = f"http://{host}:{port}/ui"
+
+    # Check if something is already listening on the port
+    already_running = False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        try:
+            s.connect((host, port))
+            already_running = True
+        except (ConnectionRefusedError, OSError):
+            pass
+
+    if already_running:
+        return {"url": url, "started": False, "message": "ocw serve is already running."}
+
+    # Spawn ocw serve detached from this process
+    ocw_bin = sys.argv[0] if sys.argv[0].endswith("ocw") else "ocw"
+    try:
+        subprocess.Popen(
+            [ocw_bin, "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        return {"error": f"Could not find '{ocw_bin}' on PATH. Run 'ocw serve' manually."}
+
+    # Wait up to 5 seconds for the port to open
+    for _ in range(10):
+        time.sleep(0.5)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            try:
+                s.connect((host, port))
+                return {"url": url, "started": True, "message": "Dashboard started."}
+            except (ConnectionRefusedError, OSError):
+                pass
+
+    return {
+        "url": url,
+        "started": True,
+        "message": "Server launched but not yet ready — try opening the URL in a moment.",
+    }
+
+
 # ---------------------------------------------------------------------------
 # FastMCP tool registrations
 # ---------------------------------------------------------------------------
@@ -576,3 +632,9 @@ def setup_project(agent_id: str | None = None, project_path: str | None = None) 
         agent_id=agent_id,
         project_path=project_path,
     )
+
+
+@mcp.tool()
+def open_dashboard() -> dict:
+    """Open the OCW web dashboard. Starts ocw serve in the background if not already running."""
+    return _tool_open_dashboard(_config)

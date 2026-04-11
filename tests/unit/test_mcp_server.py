@@ -379,3 +379,59 @@ def test_setup_project_no_config():
         project_path=None,
     )
     assert "error" in result
+
+
+# --- open_dashboard ---
+
+from unittest.mock import patch, MagicMock
+from ocw.mcp.server import _tool_open_dashboard
+
+
+def test_open_dashboard_already_running():
+    config = _make_config()
+
+    mock_sock = MagicMock()
+    mock_sock.__enter__ = lambda s: s
+    mock_sock.__exit__ = MagicMock(return_value=False)
+    mock_sock.connect = MagicMock()  # connect succeeds = port is bound
+
+    with patch("socket.socket", return_value=mock_sock):
+        result = _tool_open_dashboard(config)
+
+    assert result["started"] is False
+    assert "7391" in result["url"]
+    assert "/ui" in result["url"]
+
+
+def test_open_dashboard_starts_server():
+    config = _make_config()
+
+    call_count = 0
+
+    def fake_socket_factory(*args, **kwargs):
+        nonlocal call_count
+        s = MagicMock()
+        s.__enter__ = lambda self: self
+        s.__exit__ = MagicMock(return_value=False)
+        call_count += 1
+        if call_count == 1:
+            # First call: port not bound
+            s.connect = MagicMock(side_effect=ConnectionRefusedError)
+        else:
+            # Subsequent calls (polling): port is bound
+            s.connect = MagicMock()
+        return s
+
+    with patch("socket.socket", side_effect=fake_socket_factory), \
+         patch("subprocess.Popen") as mock_popen, \
+         patch("time.sleep"):
+        result = _tool_open_dashboard(config)
+
+    mock_popen.assert_called_once()
+    assert result["started"] is True
+    assert "/ui" in result["url"]
+
+
+def test_open_dashboard_no_config():
+    result = _tool_open_dashboard(None)
+    assert "error" in result
