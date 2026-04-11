@@ -179,6 +179,41 @@ Claude Code emits OTLP log events which `ocw serve` converts into spans — ever
 
 Works in both interactive and autonomous (headless) mode. Drift detection is especially useful for autonomous runs where Claude Code executes recurring tasks — token anomalies and tool sequence changes are caught automatically.
 
+### MCP server
+
+`ocw` ships an MCP server that gives Claude Code direct access to your observability data — no `ocw serve` required. Install it once globally:
+
+```bash
+pip install "openclawwatch[mcp]"
+claude mcp add --scope user ocw -- ocw mcp
+```
+
+Restart Claude Code. You now have 13 tools available in every session:
+
+| Tool | What it does |
+|---|---|
+| `get_status` | Current agent state — tokens, cost, active alerts |
+| `get_budget_headroom` | Budget limit vs spend for an agent |
+| `list_active_sessions` | All running sessions across agents |
+| `list_agents` | All known agents with lifetime cost |
+| `get_cost_summary` | Cost breakdown by day / agent / model |
+| `list_alerts` | Alert history with severity and unread filtering |
+| `list_traces` | Recent traces with cost and duration |
+| `get_trace` | Full span waterfall for a single trace |
+| `get_tool_stats` | Tool call counts and average duration |
+| `get_drift_report` | Behavioral drift baseline vs latest session |
+| `acknowledge_alert` | Mark an alert as acknowledged |
+| `setup_project` | Configure a project to send telemetry to OCW |
+| `open_dashboard` | Open the web UI — starts `ocw serve` on demand if needed |
+
+The MCP server opens the DuckDB file read-only — no lock conflicts with `ocw serve` if both are running. The single write operation (`acknowledge_alert`) opens a short-lived read-write connection only for its UPDATE.
+
+**Per-project telemetry tagging** — after installing the MCP server globally, ask Claude Code to set up each project:
+
+> "Set up OCW for this project"
+
+Claude calls `setup_project`, which writes `.claude/settings.json` with `OTEL_RESOURCE_ATTRIBUTES=service.name=<project>` so spans from that project are tagged with the right agent ID.
+
 ---
 
 ## Framework support
@@ -399,6 +434,7 @@ ocw budget           View and set daily / session cost limits
 ocw drift            Drift report: baseline vs latest session Z-scores
 ocw tools            Tool call history with error rates
 ocw export           Export to json / csv / otlp / openevals
+ocw mcp              Start the MCP server (stdio transport for Claude Code)
 ocw serve            Local REST API + Prometheus metrics endpoint
 ocw stop             Stop the background daemon or ocw serve process
 ocw uninstall        Remove all OCW data, config, and daemon
@@ -470,6 +506,7 @@ PRs welcome. If you're adding a framework integration, open an issue first so we
 - [x] `ocw budget` CLI, API route, and web UI
 - [x] `ocw drift` CLI with Z-score reporting
 - [x] Full pipeline wiring (alerts, schema validation, drift detection in `ocw serve`)
+- [x] MCP server (`ocw mcp`) — 13 tools for Claude Code, no `ocw serve` dependency
 - [ ] `ocw watch` — live tail mode for spans
 - [ ] `ocw replay` — replay captured sessions against new model versions
 - [ ] Vercel AI SDK integration (TypeScript)

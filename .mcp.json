@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ocw": {
+      "type": "stdio",
+      "command": "/Users/anshs/.local/bin/ocw",
+      "args": [
+        "mcp"
+      ],
+      "env": {}
+    }
+  }
+}
