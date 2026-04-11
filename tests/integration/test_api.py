@@ -4,11 +4,15 @@ from __future__ import annotations
 import pytest
 import httpx
 
+from unittest.mock import patch
+
 from ocw.api.app import create_app
 from ocw.core.config import (
+    AgentConfig,
     AlertsConfig,
     ApiAuthConfig,
     ApiConfig,
+    BudgetConfig,
     OcwConfig,
     SecurityConfig,
 )
@@ -286,3 +290,27 @@ async def test_get_endpoint_works_with_valid_api_key(auth_client):
 async def test_docs_endpoint_is_accessible(client):
     resp = await client.get("/docs")
     assert resp.status_code == 200
+
+
+# ── Budget ─────────────────────────────────────────────────────────────────
+
+async def test_post_budget_zero_clears_limit(db):
+    """Posting daily_usd=0 (empty field from UI) should set limit to None (no limit)."""
+    cfg = OcwConfig(
+        version="1",
+        security=SecurityConfig(ingest_secret=INGEST_SECRET),
+        api=ApiConfig(auth=ApiAuthConfig(enabled=False)),
+        agents={"my-agent": AgentConfig(budget=BudgetConfig(daily_usd=5.0))},
+    )
+    pipeline = IngestPipeline(db=db, config=cfg)
+    app = create_app(config=cfg, db=db, ingest_pipeline=pipeline)
+    transport = httpx.ASGITransport(app=app)
+
+    with patch("ocw.api.routes.budget.find_config_file", return_value="/fake/ocw.toml"), \
+         patch("ocw.api.routes.budget.write_config"):
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post("/api/v1/budget", json={"scope": "my-agent", "daily_usd": 0})
+
+    assert resp.status_code == 200
+    agent = resp.json()["agents"]["my-agent"]
+    assert agent["configured"]["daily_usd"] is None  # limit was cleared

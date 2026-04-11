@@ -435,3 +435,180 @@ def test_open_dashboard_starts_server():
 def test_open_dashboard_no_config():
     result = _tool_open_dashboard(None)
     assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# HTTP mode tests (_HttpDB and HTTP-path handlers)
+# ---------------------------------------------------------------------------
+
+import ocw.mcp.server as _srv
+from ocw.mcp.server import (
+    _tool_list_traces,
+    _tool_list_alerts,
+    _tool_list_active_sessions,
+    _tool_acknowledge_alert,
+    _tool_get_status,
+)
+
+
+def _set_serve_url(url: str | None) -> None:
+    _srv._serve_url = url
+
+
+# --- test_get_status_http_mode ---
+
+def test_get_status_http_mode():
+    fake_response = {
+        "agents": [
+            {
+                "agent_id": "alpha",
+                "status": "active",
+                "session_id": "s1",
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "tool_call_count": 5,
+                "error_count": 0,
+                "cost_today": 1.23,
+                "active_alerts": 0,
+            }
+        ],
+        "has_active_alerts": False,
+    }
+    config = _make_config("alpha")
+    _set_serve_url("http://127.0.0.1:7391")
+    try:
+        with patch("ocw.mcp.server._http_get", return_value=fake_response):
+            result = _tool_get_status(None, config, "alpha")
+        assert result["status"] == "active"
+    finally:
+        _set_serve_url(None)
+
+
+# --- test_list_traces_http_mode ---
+
+def test_list_traces_http_mode():
+    fake_response = {
+        "traces": [
+            {
+                "trace_id": "abc",
+                "agent_id": "a",
+                "name": "gen_ai.llm.call",
+                "start_time": "2026-04-11T10:00:00+00:00",
+                "duration_ms": 1234,
+                "cost_usd": 0.05,
+                "status_code": "ok",
+                "span_count": 2,
+            }
+        ],
+        "count": 1,
+    }
+    _set_serve_url("http://127.0.0.1:7391")
+    try:
+        with patch("ocw.mcp.server._http_get", return_value=fake_response):
+            db = _srv._HttpDB()
+            result = _tool_list_traces(db, "a", None, 20)
+        assert result["count"] == 1
+        assert result["traces"][0]["trace_id"] == "abc"
+    finally:
+        _set_serve_url(None)
+
+
+# --- test_list_alerts_http_mode ---
+
+def test_list_alerts_http_mode():
+    fake_response = {
+        "alerts": [
+            {
+                "alert_id": "alert-1",
+                "fired_at": "2026-04-11T09:00:00+00:00",
+                "type": "cost_budget_daily",
+                "severity": "warning",
+                "title": "Budget exceeded",
+                "agent_id": "alpha",
+                "acknowledged": False,
+                "suppressed": False,
+            }
+        ],
+        "count": 1,
+    }
+    _set_serve_url("http://127.0.0.1:7391")
+    try:
+        with patch("ocw.mcp.server._http_get", return_value=fake_response):
+            db = _srv._HttpDB()
+            result = _tool_list_alerts(db, "alpha", None, False)
+        assert result["count"] == 1
+        assert result["alerts"][0]["type"] == "cost_budget_daily"
+        assert result["alerts"][0]["severity"] == "warning"
+    finally:
+        _set_serve_url(None)
+
+
+# --- test_list_active_sessions_http_mode ---
+
+def test_list_active_sessions_http_mode():
+    fake_response = {
+        "agents": [
+            {
+                "agent_id": "alpha",
+                "status": "active",
+                "session_id": "s1",
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "tool_call_count": 5,
+                "error_count": 0,
+                "cost_today": 1.23,
+                "active_alerts": 0,
+            }
+        ],
+        "has_active_alerts": False,
+    }
+    _set_serve_url("http://127.0.0.1:7391")
+    try:
+        with patch("ocw.mcp.server._http_get", return_value=fake_response):
+            result = _tool_list_active_sessions(None)
+        assert result["count"] == 1
+    finally:
+        _set_serve_url(None)
+
+
+# --- test_acknowledge_alert_http_mode ---
+
+def test_acknowledge_alert_http_mode():
+    result = _tool_acknowledge_alert(None, "some-id")
+    assert "error" in result
+
+
+# --- test_get_budget_headroom_http_mode ---
+
+def test_get_budget_headroom_http_mode_reads_live_limits():
+    """Budget limits should come from the live /api/v1/budget endpoint, not stale _config."""
+    budget_response = {
+        "defaults": {"daily_usd": 5.0, "session_usd": None},
+        "agents": {
+            "alpha": {
+                "configured": {"daily_usd": 20.0, "session_usd": None},
+                "effective": {"daily_usd": 20.0, "session_usd": None},
+            }
+        },
+    }
+    status_response = {
+        "agents": [{"agent_id": "alpha", "cost_today": 3.0, "status": "active"}],
+        "has_active_alerts": False,
+    }
+
+    def fake_http_get(path, params=None):
+        if "/budget" in path:
+            return budget_response
+        return status_response
+
+    config = _make_config("alpha", daily_usd=5.0)  # stale config still has old $5
+    _set_serve_url("http://127.0.0.1:7391")
+    try:
+        with patch("ocw.mcp.server._http_get", side_effect=fake_http_get):
+            result = _tool_get_budget_headroom(None, config, "alpha")
+        # Must use the live 20.0 limit, not the stale 5.0 from config
+        assert result["daily_limit_usd"] == 20.0
+        assert abs(result["daily_spent_usd"] - 3.0) < 0.01
+        assert abs(result["daily_remaining_usd"] - 17.0) < 0.01
+    finally:
+        _set_serve_url(None)

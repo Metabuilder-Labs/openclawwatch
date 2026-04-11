@@ -6,20 +6,197 @@ from fastmcp import FastMCP
 mcp = FastMCP("ocw")
 
 # Module-level state initialised by init() or cmd_mcp.py
-_ro_conn = None   # duckdb read-only connection
-_config = None    # OcwConfig
-_ro_db = None     # _ReadOnlyDB wrapping _ro_conn
+_ro_conn = None       # duckdb read-only connection
+_config = None        # OcwConfig
+_ro_db = None         # _ReadOnlyDB or _HttpDB
+_serve_url: str | None = None  # base URL for ocw serve HTTP API when DuckDB is locked
 
 
-def init(ro_conn, config) -> None:
+def init(ro_conn, config, serve_url: str | None = None) -> None:
     """Inject DB connection and config. Called by cmd_mcp.py and tests."""
-    global _ro_conn, _config, _ro_db
+    global _ro_conn, _config, _ro_db, _serve_url
     _ro_conn, _config = ro_conn, config
-    _ro_db = _ReadOnlyDB(ro_conn) if ro_conn is not None else None
+    _serve_url = serve_url
+    if ro_conn is not None:
+        _ro_db = _ReadOnlyDB(ro_conn)
+    elif serve_url is not None:
+        _ro_db = _HttpDB()
+    else:
+        _ro_db = None
 
 
 def _no_config() -> dict:
     return {"error": "No OCW config found. Run 'ocw onboard --claude-code' to set up."}
+
+
+def _http_get(path: str, params: dict | None = None) -> dict:
+    """Issue a GET request to the ocw serve HTTP API. Uses module-level _serve_url."""
+    import json
+    import urllib.parse
+    import urllib.request
+
+    url = f"{_serve_url}{path}"
+    if params:
+        filtered = {k: str(v) for k, v in params.items() if v is not None}
+        if filtered:
+            url += "?" + urllib.parse.urlencode(filtered)
+    with urllib.request.urlopen(url, timeout=5) as resp:
+        return json.loads(resp.read())
+
+
+class _HttpDB:
+    """DB-like object that proxies reads to a running ocw serve HTTP API."""
+
+    @property
+    def conn(self) -> None:
+        return None
+
+    def get_cost_summary(self, filters):
+        from types import SimpleNamespace
+        params = {}
+        if filters.agent_id:
+            params["agent_id"] = filters.agent_id
+        if filters.since:
+            params["since"] = filters.since.isoformat()
+        if filters.group_by:
+            params["group_by"] = filters.group_by
+        data = _http_get("/api/v1/cost", params)
+        return [
+            SimpleNamespace(
+                group=r.get("group"),
+                agent_id=r.get("agent_id"),
+                model=r.get("model"),
+                input_tokens=r.get("input_tokens", 0),
+                output_tokens=r.get("output_tokens", 0),
+                cost_usd=r.get("cost_usd", 0.0),
+            )
+            for r in data.get("rows", [])
+        ]
+
+    def get_alerts(self, filters):
+        from datetime import datetime
+        from types import SimpleNamespace
+        params = {}
+        if filters.agent_id:
+            params["agent_id"] = filters.agent_id
+        if filters.severity:
+            params["severity"] = filters.severity.value
+        if filters.unread:
+            params["unread"] = "true"
+        data = _http_get("/api/v1/alerts", params)
+        results = []
+        for a in data.get("alerts", []):
+            results.append(SimpleNamespace(
+                alert_id=a["alert_id"],
+                fired_at=datetime.fromisoformat(a["fired_at"]),
+                type=SimpleNamespace(value=a["type"]),
+                severity=SimpleNamespace(value=a["severity"]),
+                title=a["title"],
+                agent_id=a["agent_id"],
+                acknowledged=a["acknowledged"],
+                suppressed=a["suppressed"],
+            ))
+        return results
+
+    def get_traces(self, filters):
+        from datetime import datetime
+        from types import SimpleNamespace
+        params = {}
+        if filters.agent_id:
+            params["agent_id"] = filters.agent_id
+        if filters.since:
+            params["since"] = filters.since.isoformat()
+        if filters.limit:
+            params["limit"] = filters.limit
+        data = _http_get("/api/v1/traces", params)
+        results = []
+        for t in data.get("traces", []):
+            results.append(SimpleNamespace(
+                trace_id=t["trace_id"],
+                agent_id=t.get("agent_id"),
+                name=t.get("name"),
+                start_time=datetime.fromisoformat(t["start_time"]) if t.get("start_time") else None,
+                duration_ms=t.get("duration_ms"),
+                cost_usd=t.get("cost_usd"),
+                status_code=t.get("status_code"),
+                span_count=t.get("span_count", 0),
+            ))
+        return results
+
+    def get_trace_spans(self, trace_id: str):
+        from datetime import datetime
+        from types import SimpleNamespace
+        data = _http_get(f"/api/v1/traces/{trace_id}")
+        results = []
+        for s in data.get("spans", []):
+            results.append(SimpleNamespace(
+                span_id=s["span_id"],
+                parent_span_id=s.get("parent_span_id"),
+                name=s.get("name"),
+                kind=SimpleNamespace(value=s.get("kind", "")),
+                status_code=SimpleNamespace(value=s.get("status_code", "")),
+                start_time=datetime.fromisoformat(s["start_time"]) if s.get("start_time") else None,
+                end_time=datetime.fromisoformat(s["end_time"]) if s.get("end_time") else None,
+                duration_ms=s.get("duration_ms"),
+                provider=s.get("provider"),
+                model=s.get("model"),
+                tool_name=s.get("tool_name"),
+                input_tokens=s.get("input_tokens"),
+                output_tokens=s.get("output_tokens"),
+                cost_usd=s.get("cost_usd"),
+            ))
+        return results
+
+    def get_tool_calls(self, agent_id, since, tool_name):
+        params = {}
+        if agent_id:
+            params["agent_id"] = agent_id
+        if since:
+            params["since"] = since.isoformat()
+        if tool_name:
+            params["tool_name"] = tool_name
+        data = _http_get("/api/v1/tools", params)
+        return data.get("tools", [])
+
+    def get_baseline(self, agent_id: str):
+        from datetime import datetime
+        from types import SimpleNamespace
+        try:
+            data = _http_get("/api/v1/drift", {"agent_id": agent_id})
+        except Exception:
+            return None
+        if "error" in data or data.get("baseline") is None:
+            return None
+        b = data["baseline"]
+        computed_at = datetime.fromisoformat(b["computed_at"]) if b.get("computed_at") else None
+        return SimpleNamespace(
+            sessions_sampled=b.get("sessions_sampled"),
+            computed_at=computed_at,
+            avg_input_tokens=b.get("avg_input_tokens"),
+            stddev_input_tokens=b.get("stddev_input_tokens"),
+            avg_output_tokens=b.get("avg_output_tokens"),
+            stddev_output_tokens=b.get("stddev_output_tokens"),
+            avg_session_duration_s=b.get("avg_session_duration_s"),
+            avg_tool_call_count=b.get("avg_tool_call_count"),
+        )
+
+    def get_completed_sessions(self, agent_id: str, limit: int):
+        from types import SimpleNamespace
+        try:
+            data = _http_get("/api/v1/status", {"agent_id": agent_id})
+        except Exception:
+            return []
+        agents = data.get("agents", [])
+        results = []
+        for a in agents[:limit]:
+            results.append(SimpleNamespace(
+                session_id=a.get("session_id"),
+                input_tokens=a.get("input_tokens", 0),
+                output_tokens=a.get("output_tokens", 0),
+                tool_call_count=a.get("tool_call_count", 0),
+                duration_seconds=None,
+            ))
+        return results
 
 
 class _ReadOnlyDB:
@@ -63,6 +240,34 @@ class _ReadOnlyDB:
 def _tool_get_status(conn, config, agent_id: str | None = None) -> dict:
     if config is None:
         return _no_config()
+
+    # HTTP mode: proxy to ocw serve
+    if conn is None:
+        if _serve_url is None:
+            return {"error": "No database connection and no serve URL configured."}
+        params: dict = {}
+        if agent_id:
+            params["agent_id"] = agent_id
+        data = _http_get("/api/v1/status", params)
+        # If filtering by a single agent_id, extract that agent's record from the list
+        if agent_id:
+            agents = data.get("agents", [])
+            matching = [a for a in agents if a.get("agent_id") == agent_id]
+            if matching:
+                return matching[0]
+            return {
+                "agent_id": agent_id,
+                "session_id": None,
+                "status": "idle",
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "tool_call_count": 0,
+                "error_count": 0,
+                "cost_today_usd": 0.0,
+                "active_alerts": 0,
+            }
+        return data
+
     from ocw.utils.time_parse import utcnow
 
     if agent_id:
@@ -147,9 +352,39 @@ def _tool_get_budget_headroom(conn, config, agent_id: str) -> dict:
     if config is None:
         return _no_config()
     from ocw.core.config import resolve_effective_budget
-    from ocw.utils.time_parse import utcnow
+
+    # HTTP mode: fetch both limits and spend from the live serve API so budget edits
+    # made via the UI are reflected without restarting the MCP server.
+    if conn is None:
+        if _serve_url is None:
+            return {"error": "No database connection and no serve URL configured."}
+        budget_data = _http_get("/api/v1/budget")
+        agent_budget = budget_data.get("agents", {}).get(agent_id, {})
+        effective = agent_budget.get("effective", {})
+        daily_limit = effective.get("daily_usd")
+        session_limit = effective.get("session_usd")
+
+        status_data = _http_get("/api/v1/status", {"agent_id": agent_id})
+        agents = status_data.get("agents", [])
+        today_cost = 0.0
+        session_cost = 0.0
+        if agents:
+            a = agents[0]
+            today_cost = float(a.get("cost_today", 0.0))
+        return {
+            "agent_id": agent_id,
+            "daily_limit_usd": daily_limit,
+            "daily_spent_usd": today_cost,
+            "daily_remaining_usd": (daily_limit - today_cost) if daily_limit else None,
+            "session_limit_usd": session_limit,
+            "session_spent_usd": session_cost,
+            "session_remaining_usd": (session_limit - session_cost) if session_limit else None,
+        }
 
     budget = resolve_effective_budget(agent_id, config)
+
+    from ocw.utils.time_parse import utcnow
+
     today_cost = float(conn.execute(
         "SELECT COALESCE(SUM(cost_usd), 0.0) FROM spans "
         "WHERE agent_id = $1 AND CAST(start_time AT TIME ZONE 'UTC' AS DATE) = $2",
@@ -175,6 +410,23 @@ def _tool_get_budget_headroom(conn, config, agent_id: str) -> dict:
 
 
 def _tool_list_agents(conn) -> dict:
+    # HTTP mode: proxy to serve status endpoint
+    if conn is None:
+        if _serve_url is None:
+            return _no_config()
+        data = _http_get("/api/v1/status")
+        return {
+            "agents": [
+                {
+                    "agent_id": a["agent_id"],
+                    "first_seen": None,
+                    "last_seen": None,
+                    "lifetime_cost_usd": float(a.get("cost_today", 0.0)),
+                }
+                for a in data.get("agents", [])
+            ]
+        }
+
     rows = conn.execute(
         "SELECT a.agent_id, a.first_seen, a.last_seen, "
         "COALESCE(SUM(s.cost_usd), 0.0) AS lifetime_cost "
@@ -196,6 +448,27 @@ def _tool_list_agents(conn) -> dict:
 
 
 def _tool_list_active_sessions(conn) -> dict:
+    # HTTP mode: proxy to serve status endpoint and filter for active
+    if conn is None:
+        if _serve_url is None:
+            return _no_config()
+        data = _http_get("/api/v1/status")
+        sessions = [
+            {
+                "session_id": a.get("session_id"),
+                "agent_id": a["agent_id"],
+                "started_at": None,
+                "total_cost_usd": float(a.get("cost_today", 0.0)),
+                "input_tokens": a.get("input_tokens", 0),
+                "output_tokens": a.get("output_tokens", 0),
+                "tool_call_count": a.get("tool_call_count", 0),
+                "error_count": a.get("error_count", 0),
+            }
+            for a in data.get("agents", [])
+            if a.get("status") == "active"
+        ]
+        return {"sessions": sessions, "count": len(sessions)}
+
     rows = conn.execute(
         "SELECT session_id, agent_id, started_at, total_cost_usd, "
         "input_tokens, output_tokens, tool_call_count, error_count "
@@ -363,16 +636,24 @@ def _tool_get_drift_report(db, agent_id: str | None) -> dict:
             "latest_session": latest,
         }
     # All agents with baselines
-    agents_with_baselines = db.conn.execute(
-        "SELECT DISTINCT agent_id FROM drift_baselines ORDER BY agent_id"
-    ).fetchall()
-    return {
-        "agents": [_tool_get_drift_report(db, row[0]) for row in agents_with_baselines]
-    }
+    if hasattr(db, "conn") and db.conn is not None:
+        agents_with_baselines = db.conn.execute(
+            "SELECT DISTINCT agent_id FROM drift_baselines ORDER BY agent_id"
+        ).fetchall()
+        return {
+            "agents": [_tool_get_drift_report(db, row[0]) for row in agents_with_baselines]
+        }
+    elif _serve_url is not None:
+        return _http_get("/api/v1/drift")
+    return {"agents": []}
 
 
 def _tool_acknowledge_alert(conn, alert_id: str) -> dict:
     """Update acknowledged flag. conn may be read-write (tests) or short-lived write (prod)."""
+    if conn is None:
+        return {
+            "error": "Use the dashboard to acknowledge alerts while ocw serve is running."
+        }
     result = conn.execute(
         "SELECT alert_id FROM alerts WHERE alert_id = $1", [alert_id]
     ).fetchone()
@@ -484,15 +765,20 @@ def _tool_open_dashboard(config) -> dict:
     if already_running:
         return {"url": url, "started": False, "message": "ocw serve is already running."}
 
-    # Spawn ocw serve detached from this process
+    # Spawn ocw serve detached from this process.
+    # start_new_session is Unix-only; use DETACHED_PROCESS on Windows instead.
     ocw_bin = sys.argv[0] if sys.argv[0].endswith("ocw") else "ocw"
+    import sys as _sys
+    popen_kwargs: dict = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if _sys.platform == "win32":
+        popen_kwargs["creationflags"] = subprocess.DETACHED_PROCESS
+    else:
+        popen_kwargs["start_new_session"] = True
     try:
-        subprocess.Popen(
-            [ocw_bin, "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        subprocess.Popen([ocw_bin, "serve"], **popen_kwargs)
     except FileNotFoundError:
         return {"error": f"Could not find '{ocw_bin}' on PATH. Run 'ocw serve' manually."}
 
@@ -546,7 +832,7 @@ def list_agents() -> dict:
     Use this when the user asks which agents are being tracked, wants an overview of all
     projects, or asks about total spend across agents.
     """
-    if _ro_conn is None:
+    if _ro_conn is None and _serve_url is None:
         return _no_config()
     return _tool_list_agents(_ro_conn)
 
@@ -559,7 +845,7 @@ def list_active_sessions() -> dict:
     sessions for the same agent. Prefer this over get_status when the user wants to see
     what's running right now across all agents.
     """
-    if _ro_conn is None:
+    if _ro_conn is None and _serve_url is None:
         return _no_config()
     return _tool_list_active_sessions(_ro_conn)
 
