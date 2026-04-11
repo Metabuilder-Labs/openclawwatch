@@ -520,19 +520,32 @@ def _tool_open_dashboard(config) -> dict:
 
 @mcp.tool()
 def get_status(agent_id: str | None = None) -> dict:
-    """Get current status for one agent (or all agents if agent_id is omitted)."""
+    """
+    Return the current observability status for one or all agents — equivalent to running
+    `ocw status` but returns structured data directly. Use this whenever the user asks about
+    agent status, what's running, token usage, cost today, or active alerts. Omit agent_id
+    to get a summary of every known agent.
+    """
     return _tool_get_status(_ro_conn, _config, agent_id)
 
 
 @mcp.tool()
 def get_budget_headroom(agent_id: str) -> dict:
-    """Get budget limits vs current spend for an agent."""
+    """
+    Return daily and per-session budget limits vs current spend for a specific agent.
+    Use this when the user asks how much budget is left, whether they're close to a limit,
+    or wants to check spend against their configured daily_usd or session_usd cap.
+    """
     return _tool_get_budget_headroom(_ro_conn, _config, agent_id)
 
 
 @mcp.tool()
 def list_agents() -> dict:
-    """Historical summary of all known agents with lifetime cost."""
+    """
+    List all agents OCW has ever seen, with first/last seen timestamps and lifetime cost.
+    Use this when the user asks which agents are being tracked, wants an overview of all
+    projects, or asks about total spend across agents.
+    """
     if _ro_conn is None:
         return _no_config()
     return _tool_list_agents(_ro_conn)
@@ -540,7 +553,12 @@ def list_agents() -> dict:
 
 @mcp.tool()
 def list_active_sessions() -> dict:
-    """All currently running sessions — one row per session, duplicates agent_id if parallel."""
+    """
+    List every session currently in 'active' status — one row per session. Use this as the
+    primary dashboard view: it shows all running agents at a glance, including parallel
+    sessions for the same agent. Prefer this over get_status when the user wants to see
+    what's running right now across all agents.
+    """
     if _ro_conn is None:
         return _no_config()
     return _tool_list_active_sessions(_ro_conn)
@@ -552,7 +570,12 @@ def get_cost_summary(
     since: str | None = None,
     group_by: str = "day",
 ) -> dict:
-    """Cost breakdown grouped by day/agent/model. since accepts '24h', '7d', '2026-04-01'."""
+    """
+    Return a cost breakdown grouped by day, agent, or model — equivalent to `ocw cost`.
+    Use this when the user asks about spending, cost trends, which model is most expensive,
+    or wants a breakdown over a time period. since accepts relative values like '24h', '7d'
+    or an absolute date like '2026-04-01'. group_by accepts 'day', 'agent', or 'model'.
+    """
     if _ro_db is None:
         return _no_config()
     return _tool_get_cost_summary(_ro_db, agent_id, since, group_by)
@@ -564,7 +587,12 @@ def list_alerts(
     severity: str | None = None,
     unread: bool = False,
 ) -> dict:
-    """Alert history. severity: 'critical'|'warning'|'info'. unread=True for active only."""
+    """
+    Return alert history — equivalent to `ocw alerts`. Use this when the user asks about
+    alerts, what fired while they were away, budget breaches, sensitive actions, or drift
+    events. severity filters to 'critical', 'warning', or 'info'. Set unread=True to show
+    only active (unacknowledged, unsuppressed) alerts.
+    """
     if _ro_db is None:
         return _no_config()
     return _tool_list_alerts(_ro_db, agent_id, severity, unread)
@@ -576,7 +604,11 @@ def list_traces(
     since: str | None = None,
     limit: int = 20,
 ) -> dict:
-    """Recent traces with cost, duration, span count. since accepts '24h', '7d', '2026-04-01'."""
+    """
+    List recent traces with cost, duration, and span count — equivalent to `ocw traces`.
+    Use this when the user wants to see recent LLM calls, browse trace history, or find a
+    specific trace to drill into. since accepts '24h', '7d', or '2026-04-01'.
+    """
     if _ro_db is None:
         return _no_config()
     return _tool_list_traces(_ro_db, agent_id, since, limit)
@@ -584,7 +616,11 @@ def list_traces(
 
 @mcp.tool()
 def get_trace(trace_id: str) -> dict:
-    """Full span waterfall for a single trace."""
+    """
+    Return the full span waterfall for a single trace — equivalent to `ocw trace <id>`.
+    Use this when the user wants to inspect a specific trace in detail, understand the
+    sequence of LLM and tool calls within it, or debug a particular agent run.
+    """
     if _ro_db is None:
         return _no_config()
     return _tool_get_trace(_ro_db, trace_id)
@@ -595,7 +631,11 @@ def get_tool_stats(
     agent_id: str | None = None,
     since: str | None = None,
 ) -> dict:
-    """Tool call counts and average duration per tool."""
+    """
+    Return tool call counts and average duration per tool — equivalent to `ocw tools`.
+    Use this when the user asks which tools their agent uses most, average execution time,
+    or wants to identify slow or frequently-called tools.
+    """
     if _ro_db is None:
         return _no_config()
     return _tool_get_tool_stats(_ro_db, agent_id, since)
@@ -603,7 +643,12 @@ def get_tool_stats(
 
 @mcp.tool()
 def get_drift_report(agent_id: str | None = None) -> dict:
-    """Behavioral drift baseline vs latest session. Omit agent_id for all agents."""
+    """
+    Return behavioral drift data: statistical baseline vs the latest session's actual
+    behavior. Use this when the user asks whether their agent is behaving differently than
+    usual, wants Z-score analysis on token usage or tool patterns, or wants to understand
+    drift alerts. Omit agent_id to get reports for all agents with baselines.
+    """
     if _ro_db is None:
         return _no_config()
     return _tool_get_drift_report(_ro_db, agent_id)
@@ -611,7 +656,11 @@ def get_drift_report(agent_id: str | None = None) -> dict:
 
 @mcp.tool()
 def acknowledge_alert(alert_id: str) -> dict:
-    """Mark an alert as acknowledged. Does not suppress — alert remains in history."""
+    """
+    Mark a specific alert as acknowledged. Use this when the user says they've seen an
+    alert and want to clear it, or when resolving active alerts shown by list_alerts.
+    Does not suppress future alerts of the same type — only marks this one as read.
+    """
     if _config is None:
         return _no_config()
     from pathlib import Path
@@ -623,7 +672,12 @@ def acknowledge_alert(alert_id: str) -> dict:
 
 @mcp.tool()
 def setup_project(agent_id: str | None = None, project_path: str | None = None) -> dict:
-    """Configure this project to send telemetry to OCW. Writes .claude/settings.json."""
+    """
+    Configure the current project to send telemetry to OCW. Writes OTEL_RESOURCE_ATTRIBUTES
+    into .claude/settings.json so Claude Code tags spans with the right agent ID. Use this
+    when the user wants to start monitoring a new project, or asks how to set up OCW for
+    this repo. Infers agent_id from the git remote if not provided.
+    """
     from ocw.core.config import find_config_file
     cp = find_config_file()
     return _tool_setup_project(
@@ -636,5 +690,10 @@ def setup_project(agent_id: str | None = None, project_path: str | None = None) 
 
 @mcp.tool()
 def open_dashboard() -> dict:
-    """Open the OCW web dashboard. Starts ocw serve in the background if not already running."""
+    """
+    Open the OCW web dashboard in the browser. Starts `ocw serve` in the background if it
+    is not already running — do NOT start ocw serve manually via Bash. Call this tool
+    whenever the user asks to open the dashboard, view the UI, or browse observability data
+    visually. Returns the URL to open. Safe to call repeatedly — detects if already running.
+    """
     return _tool_open_dashboard(_config)
