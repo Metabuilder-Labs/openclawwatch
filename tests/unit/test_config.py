@@ -5,7 +5,8 @@ import pytest
 
 from ocw.core.config import (
     load_config, _parse, _serialise, OcwConfig, AgentConfig, BudgetConfig,
-    SensitiveAction, SecurityConfig, CaptureConfig, StorageConfig,
+    DefaultsConfig, SensitiveAction, SecurityConfig, CaptureConfig, StorageConfig,
+    resolve_effective_budget, validate_budget_value,
 )
 
 
@@ -140,3 +141,62 @@ class TestSerialise:
         assert restored.agents["test"].sensitive_actions[0].name == "rm_rf"
         assert restored.security.ingest_secret == "secret123"
         assert restored.capture.prompts is True
+
+
+class TestResolveEffectiveBudget:
+    def test_agent_with_both_fields_uses_agent_values(self):
+        config = OcwConfig(
+            version="1",
+            defaults=DefaultsConfig(budget=BudgetConfig(daily_usd=10.0, session_usd=2.0)),
+            agents={"a": AgentConfig(budget=BudgetConfig(daily_usd=5.0, session_usd=1.0))},
+        )
+        eff = resolve_effective_budget("a", config)
+        assert eff.daily_usd == 5.0
+        assert eff.session_usd == 1.0
+
+    def test_agent_with_partial_fields_merges_from_defaults(self):
+        config = OcwConfig(
+            version="1",
+            defaults=DefaultsConfig(budget=BudgetConfig(daily_usd=10.0)),
+            agents={"a": AgentConfig(budget=BudgetConfig(session_usd=1.0))},
+        )
+        eff = resolve_effective_budget("a", config)
+        assert eff.daily_usd == 10.0
+        assert eff.session_usd == 1.0
+
+    def test_unknown_agent_uses_defaults(self):
+        config = OcwConfig(
+            version="1",
+            defaults=DefaultsConfig(budget=BudgetConfig(daily_usd=10.0, session_usd=2.0)),
+        )
+        eff = resolve_effective_budget("unknown", config)
+        assert eff.daily_usd == 10.0
+        assert eff.session_usd == 2.0
+
+    def test_no_defaults_no_agent_returns_none_both(self):
+        config = OcwConfig(version="1")
+        eff = resolve_effective_budget("any", config)
+        assert eff.daily_usd is None
+        assert eff.session_usd is None
+
+    def test_agent_explicit_none_falls_through_to_defaults(self):
+        config = OcwConfig(
+            version="1",
+            defaults=DefaultsConfig(budget=BudgetConfig(daily_usd=10.0)),
+            agents={"a": AgentConfig(budget=BudgetConfig(daily_usd=None, session_usd=5.0))},
+        )
+        eff = resolve_effective_budget("a", config)
+        assert eff.daily_usd == 10.0
+        assert eff.session_usd == 5.0
+
+
+class TestValidateBudgetValue:
+    def test_positive_returns_value(self):
+        assert validate_budget_value(5.0, "daily_usd") == 5.0
+
+    def test_zero_returns_none(self):
+        assert validate_budget_value(0.0, "daily_usd") is None
+
+    def test_negative_raises(self):
+        with pytest.raises(ValueError, match="must be non-negative"):
+            validate_budget_value(-1.0, "daily_usd")

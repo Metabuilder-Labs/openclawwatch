@@ -43,6 +43,47 @@ class GenAIAttributes:
     SPAN_LLM_CALL     = "gen_ai.llm.call"
 
 
+class ClaudeCodeEvents:
+    """Event names and attributes from Claude Code's OTel log exporter."""
+    # Event names (logRecord body values)
+    API_REQUEST   = "claude_code.api_request"
+    TOOL_RESULT   = "claude_code.tool_result"
+    API_ERROR     = "claude_code.api_error"
+    USER_PROMPT   = "claude_code.user_prompt"
+    TOOL_DECISION = "claude_code.tool_decision"
+
+    # Standard context attributes on all events
+    SESSION_ID     = "session.id"
+    PROMPT_ID      = "prompt.id"
+    EVENT_SEQUENCE = "event.sequence"
+
+    # api_request attributes
+    COST_USD              = "cost_usd"
+    DURATION_MS           = "duration_ms"
+    SPEED                 = "speed"
+    INPUT_TOKENS          = "input_tokens"
+    OUTPUT_TOKENS         = "output_tokens"
+    CACHE_READ_TOKENS     = "cache_read_tokens"
+    CACHE_CREATION_TOKENS = "cache_creation_tokens"
+
+    # tool_result attributes
+    TOOL_NAME        = "tool_name"
+    SUCCESS          = "success"
+    ERROR            = "error"
+    TOOL_PARAMETERS  = "tool_parameters"
+    TOOL_INPUT       = "tool_input"
+    DECISION_TYPE    = "decision_type"
+    TOOL_RESULT_SIZE = "tool_result_size_bytes"
+
+    # api_error attributes
+    STATUS_CODE_HTTP = "status_code"
+    ATTEMPT          = "attempt"
+
+    # tool_decision attributes
+    DECISION         = "decision"
+    DECISION_SOURCE  = "source"
+
+
 class OcwAttributes:
     """ocw-specific span attributes (non-standard extensions)."""
     COST_USD         = "ocw.cost_usd"

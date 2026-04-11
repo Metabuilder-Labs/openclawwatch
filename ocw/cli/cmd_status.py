@@ -4,6 +4,7 @@ import json
 
 import click
 
+from ocw.core.config import resolve_effective_budget
 from ocw.core.models import AlertFilters
 from ocw.utils.formatting import console, format_cost, format_tokens, status_icon
 from ocw.utils.time_parse import utcnow
@@ -67,15 +68,10 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 
         today_cost = db.get_daily_cost(aid, utcnow().date())
 
-        # Budget from config: per-agent overrides defaults
+        # Budget from config: per-field merge of agent overrides + defaults
         config = ctx.obj["config"]
-        agent_config = config.agents.get(aid)
-        if agent_config and agent_config.budget.daily_usd is not None:
-            daily_limit = agent_config.budget.daily_usd
-        elif hasattr(config, "defaults") and config.defaults.budget.daily_usd is not None:
-            daily_limit = config.defaults.budget.daily_usd
-        else:
-            daily_limit = None
+        effective = resolve_effective_budget(aid, config)
+        daily_limit = effective.daily_usd
 
         # Active alerts
         alerts = db.get_alerts(AlertFilters(agent_id=aid, unread=True, limit=50))
@@ -85,7 +81,7 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 
         agent_data = {
             "agent_id": aid,
-            "status": session.status if session else "idle",
+            "status": session.effective_status if session else "idle",
             "session_id": session.session_id if session else None,
             "cost_today": today_cost,
             "daily_limit": daily_limit,
@@ -112,7 +108,7 @@ def cmd_status(ctx: click.Context, agent: str | None, output_json: bool) -> None
 def _print_agent_status(data: dict, active_alerts: list, session: object | None) -> None:
     status = data["status"]
     icon = status_icon(status)
-    style = "green" if status == "active" else "dim"
+    style = "green" if status == "active" else "yellow" if status == "stale" else "dim"
 
     duration_str = ""
     if session and hasattr(session, "duration_seconds") and session.duration_seconds:

@@ -17,6 +17,7 @@ def status_icon(status: str) -> str:
         "active": "\u25cf",
         "idle": "\u25cb",
         "completed": "\u25cf",
+        "stale": "\u25cb",
     }.get(status, "?")
 
 

@@ -80,6 +80,7 @@ from ocw.cli.cmd_serve import cmd_serve  # noqa: E402
 from ocw.cli.cmd_stop import cmd_stop  # noqa: E402
 from ocw.cli.cmd_uninstall import cmd_uninstall  # noqa: E402
 from ocw.cli.cmd_doctor import cmd_doctor  # noqa: E402
+from ocw.cli.cmd_budget import cmd_budget  # noqa: E402
 
 cli.add_command(cmd_onboard, name="onboard")
 cli.add_command(cmd_status, name="status")
@@ -93,6 +94,7 @@ cli.add_command(cmd_serve, name="serve")
 cli.add_command(cmd_stop, name="stop")
 cli.add_command(cmd_uninstall, name="uninstall")
 cli.add_command(cmd_doctor, name="doctor")
+cli.add_command(cmd_budget, name="budget")
 
 # cmd_drift is provided by task 05 — register if available
 try:

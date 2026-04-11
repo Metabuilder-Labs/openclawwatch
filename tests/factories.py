@@ -160,3 +160,122 @@ def make_session_with_spans(
         spans.append(span)
 
     return session, spans
+
+
+# -- Claude Code OTLP log factories --
+
+def make_claude_code_api_request_log(
+    session_id: str = "cc-session-1",
+    prompt_id: str | None = None,
+    model: str = "claude-sonnet-4-6",
+    input_tokens: int = 1000,
+    output_tokens: int = 200,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
+    cost_usd: float = 0.003,
+    duration_ms: float = 1200.0,
+    sequence: int = 1,
+    timestamp_ns: int | None = None,
+) -> dict:
+    """Build an OTLP logRecord dict for a Claude Code api_request event."""
+    if timestamp_ns is None:
+        import time
+        timestamp_ns = int(time.time() * 1e9)
+    if prompt_id is None:
+        prompt_id = new_uuid()
+    attributes = [
+        {"key": "session.id", "value": {"stringValue": session_id}},
+        {"key": "prompt.id", "value": {"stringValue": prompt_id}},
+        {"key": "event.sequence", "value": {"intValue": str(sequence)}},
+        {"key": "model", "value": {"stringValue": model}},
+        {"key": "input_tokens", "value": {"intValue": str(input_tokens)}},
+        {"key": "output_tokens", "value": {"intValue": str(output_tokens)}},
+        {"key": "cache_read_tokens", "value": {"intValue": str(cache_read_tokens)}},
+        {"key": "cache_creation_tokens", "value": {"intValue": str(cache_creation_tokens)}},
+        {"key": "cost_usd", "value": {"doubleValue": cost_usd}},
+        {"key": "duration_ms", "value": {"doubleValue": duration_ms}},
+    ]
+    return {
+        "timeUnixNano": str(timestamp_ns),
+        "body": {"stringValue": "claude_code.api_request"},
+        "attributes": attributes,
+    }
+
+
+def make_claude_code_tool_result_log(
+    session_id: str = "cc-session-1",
+    prompt_id: str | None = None,
+    tool_name: str = "Read",
+    success: bool = True,
+    duration_ms: float = 50.0,
+    error: str | None = None,
+    sequence: int = 2,
+    timestamp_ns: int | None = None,
+) -> dict:
+    """Build an OTLP logRecord dict for a Claude Code tool_result event."""
+    if timestamp_ns is None:
+        import time
+        timestamp_ns = int(time.time() * 1e9)
+    if prompt_id is None:
+        prompt_id = new_uuid()
+    attributes = [
+        {"key": "session.id", "value": {"stringValue": session_id}},
+        {"key": "prompt.id", "value": {"stringValue": prompt_id}},
+        {"key": "event.sequence", "value": {"intValue": str(sequence)}},
+        {"key": "tool_name", "value": {"stringValue": tool_name}},
+        {"key": "success", "value": {"boolValue": success}},
+        {"key": "duration_ms", "value": {"doubleValue": duration_ms}},
+    ]
+    if error:
+        attributes.append({"key": "error", "value": {"stringValue": error}})
+    return {
+        "timeUnixNano": str(timestamp_ns),
+        "body": {"stringValue": "claude_code.tool_result"},
+        "attributes": attributes,
+    }
+
+
+def make_claude_code_api_error_log(
+    session_id: str = "cc-session-1",
+    model: str = "claude-sonnet-4-6",
+    error: str = "rate_limit_exceeded",
+    status_code: int = 429,
+    attempt: int = 1,
+    duration_ms: float = 100.0,
+    sequence: int = 3,
+    timestamp_ns: int | None = None,
+) -> dict:
+    """Build an OTLP logRecord dict for a Claude Code api_error event."""
+    if timestamp_ns is None:
+        import time
+        timestamp_ns = int(time.time() * 1e9)
+    return {
+        "timeUnixNano": str(timestamp_ns),
+        "body": {"stringValue": "claude_code.api_error"},
+        "attributes": [
+            {"key": "session.id", "value": {"stringValue": session_id}},
+            {"key": "event.sequence", "value": {"intValue": str(sequence)}},
+            {"key": "model", "value": {"stringValue": model}},
+            {"key": "error", "value": {"stringValue": error}},
+            {"key": "status_code", "value": {"intValue": str(status_code)}},
+            {"key": "attempt", "value": {"intValue": str(attempt)}},
+            {"key": "duration_ms", "value": {"doubleValue": duration_ms}},
+        ],
+    }
+
+
+def make_otlp_logs_body(
+    log_records: list[dict],
+    service_name: str = "claude-code",
+) -> dict:
+    """Wrap log records in the full resourceLogs envelope."""
+    return {
+        "resourceLogs": [{
+            "resource": {
+                "attributes": [
+                    {"key": "service.name", "value": {"stringValue": service_name}},
+                ],
+            },
+            "scopeLogs": [{"logRecords": log_records}],
+        }],
+    }

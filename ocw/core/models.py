@@ -1,8 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
+
+# Sessions with no spans for this long are considered stale (zombie).
+SESSION_STALE_THRESHOLD = timedelta(minutes=5)
 
 
 class Severity(str, Enum):
@@ -89,6 +92,17 @@ class SessionRecord:
         if self.started_at and self.ended_at:
             return (self.ended_at - self.started_at).total_seconds()
         return None
+
+    @property
+    def effective_status(self) -> str:
+        """Return 'stale' for zombie sessions whose process was killed."""
+        if self.status != "active":
+            return self.status
+        from ocw.utils.time_parse import utcnow
+        last_activity = self.ended_at or self.started_at
+        if last_activity and (utcnow() - last_activity) > SESSION_STALE_THRESHOLD:
+            return "stale"
+        return "active"
 
 
 @dataclass

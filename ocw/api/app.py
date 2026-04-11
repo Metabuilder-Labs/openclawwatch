@@ -62,6 +62,7 @@ def create_app(
     from ocw.api.routes.metrics import router as metrics_router
     from ocw.api.routes.status import router as status_router
     from ocw.api.routes.otlp import router as otlp_router
+    from ocw.api.routes.budget import router as budget_router
 
     app.include_router(spans_router, prefix="/api/v1")
     app.include_router(traces_router, prefix="/api/v1")
@@ -70,6 +71,7 @@ def create_app(
     app.include_router(alerts_router, prefix="/api/v1")
     app.include_router(drift_router, prefix="/api/v1")
     app.include_router(status_router, prefix="/api/v1")
+    app.include_router(budget_router, prefix="/api/v1")
     app.include_router(metrics_router)  # /metrics — no prefix
     app.include_router(otlp_router)  # /v1/traces, /v1/metrics, /v1/logs — no prefix
 
