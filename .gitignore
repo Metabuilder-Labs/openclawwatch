@@ -45,3 +45,6 @@ ocw.toml
 # Claude Code
 .claude/
 .omc/
+
+# Superpowers skill output (internal planning artifacts, not for OSS)
+docs/superpowers/
