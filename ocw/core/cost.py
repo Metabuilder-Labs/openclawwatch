@@ -61,21 +61,6 @@ class CostEngine:
         update span.cost_usd in DB, update session.total_cost_usd in DB.
         No-op if tokens are missing or zero.
         """
-        if span.cost_usd is not None:
-            # Preserve source-reported cost (e.g. Claude Code's cost_usd).
-            if hasattr(self.db, 'conn'):
-                self.db.conn.execute(
-                    "UPDATE spans SET cost_usd = ? WHERE span_id = ?",
-                    [span.cost_usd, span.span_id],
-                )
-                if span.session_id:
-                    self.db.conn.execute(
-                        "UPDATE sessions SET total_cost_usd = COALESCE(total_cost_usd, 0) + ? "
-                        "WHERE session_id = ?",
-                        [span.cost_usd, span.session_id],
-                    )
-            return
-
         if not span.provider or not span.model:
             return
         input_tokens = span.input_tokens or 0
@@ -84,6 +69,11 @@ class CostEngine:
             return
 
         cache_read_tokens = span.cache_tokens or 0
+
+        # Record whether the span was already pre-priced before we compute.
+        # Pre-priced spans have their session cost handled by _build_or_update_session
+        # in ingest.py; updating the session again here would double-count.
+        was_pre_priced = span.cost_usd is not None
 
         cost = calculate_cost(
             provider=span.provider,
@@ -98,14 +88,15 @@ class CostEngine:
         # Update span cost in DB
         if hasattr(self.db, 'conn'):
             self.db.conn.execute(
-                "UPDATE spans SET cost_usd = ? WHERE span_id = ?",
+                "UPDATE spans SET cost_usd = $1 WHERE span_id = $2",
                 [cost, span.span_id],
             )
 
-            # Accumulate into session total
-            if span.session_id:
+            # Only accumulate into session total when we computed the cost here.
+            # Skip the session update for pre-priced spans to avoid double-counting.
+            if span.session_id and not was_pre_priced:
                 self.db.conn.execute(
-                    "UPDATE sessions SET total_cost_usd = COALESCE(total_cost_usd, 0) + ? "
-                    "WHERE session_id = ?",
+                    "UPDATE sessions SET total_cost_usd = COALESCE(total_cost_usd, 0) + $1 "
+                    "WHERE session_id = $2",
                     [cost, span.session_id],
                 )

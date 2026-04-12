@@ -133,6 +133,9 @@ class IngestPipeline:
         # 3. Session resolution
         span = self._resolve_session(span)
 
+        # Normalize agent_id so spans and sessions always agree
+        span.agent_id = span.agent_id or "unknown"
+
         # 4. Write span
         self.db.insert_span(span)
 
