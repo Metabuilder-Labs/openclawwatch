@@ -197,6 +197,7 @@ def _user_prompt_to_span(
         kind=SpanKind.SERVER,
         status_code=SpanStatus.OK,
         start_time=start_time,
+        end_time=start_time,
         agent_id=resource_attrs.get("service.name", "claude-code"),
         session_id=session_id,
         conversation_id=prompt_id,

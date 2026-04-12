@@ -23,7 +23,10 @@ async def get_status(
         agent_ids = [agent_id]
     elif hasattr(db, "conn"):
         rows = db.conn.execute(
-            "SELECT DISTINCT agent_id FROM sessions ORDER BY agent_id"
+            "SELECT DISTINCT agent_id FROM sessions WHERE agent_id IS NOT NULL "
+            "UNION "
+            "SELECT DISTINCT agent_id FROM spans WHERE agent_id IS NOT NULL "
+            "ORDER BY agent_id"
         ).fetchall()
         agent_ids = [r[0] for r in rows]
     else:
@@ -61,7 +64,7 @@ async def get_status(
 
         agent_data = {
             "agent_id": aid,
-            "status": session.effective_status if session else "idle",
+            "status": session.status if session else "idle",
             "session_id": session.session_id if session else None,
             "cost_today": today_cost,
             "input_tokens": session.input_tokens if session else 0,
