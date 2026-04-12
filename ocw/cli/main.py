@@ -24,7 +24,7 @@ def cli(ctx: click.Context, config_path: str | None, output_json: bool,
         config.storage.path = db_path
 
     # Commands that don't need a database connection
-    no_db_commands = {"stop", "uninstall", "onboard"}
+    no_db_commands = {"stop", "uninstall", "onboard", "mcp"}
     invoked = ctx.invoked_subcommand
     if invoked in no_db_commands:
         ctx.obj["config"] = config
@@ -102,3 +102,6 @@ try:
     cli.add_command(cmd_drift, name="drift")
 except ImportError:
     pass
+
+from ocw.cli.cmd_mcp import cmd_mcp  # noqa: E402
+cli.add_command(cmd_mcp, name="mcp")

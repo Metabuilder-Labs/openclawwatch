@@ -49,8 +49,12 @@ def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
 
     ingest_secret = secrets.token_hex(32)
 
-    # Always install daemon unless --no-daemon was passed
-    want_daemon = not no_daemon
+    want_daemon = install_daemon or (
+        not no_daemon and click.confirm(
+            "Install background daemon (keeps ocw serve alive across reboots)?",
+            default=False,
+        )
+    )
 
     config_path = Path(".ocw/config.toml")
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -198,7 +202,7 @@ def _onboard_claude_code(
         except (json_mod.JSONDecodeError, OSError):
             global_settings = {}
 
-    # Write global OTLP config only if not already present
+    # Write global OTLP config — endpoint keys only on first run, secret always synced
     port = config.api.port
     secret = config.security.ingest_secret
     global_env: dict = global_settings.get("env", {})
@@ -207,10 +211,11 @@ def _onboard_claude_code(
         global_env["OTEL_LOGS_EXPORTER"] = "otlp"
         global_env["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/json"
         global_env["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"http://127.0.0.1:{port}"
-        if secret:
-            global_env["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Bearer {secret}"
-        global_settings["env"] = global_env
-        global_settings_path.write_text(json_mod.dumps(global_settings, indent=2) + "\n")
+    existing_header = global_env.get("OTEL_EXPORTER_OTLP_HEADERS", "")
+    if secret and (not existing_header or "Authorization=Bearer" in existing_header):
+        global_env["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Bearer {secret}"
+    global_settings["env"] = global_env
+    global_settings_path.write_text(json_mod.dumps(global_settings, indent=2) + "\n")
 
     # --- Project settings (<cwd>/.claude/settings.json) ---
     project_claude_dir = Path.cwd() / ".claude"
@@ -249,7 +254,8 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
 
     want_daemon = install_daemon or (
         not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive)?", default=True
+            "Install background daemon (keeps ocw serve alive across reboots)?",
+            default=False,
         )
     )
     if want_daemon:

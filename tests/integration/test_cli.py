@@ -417,6 +417,99 @@ def test_onboard_claude_code_prompts_for_budget(runner, tmp_path):
     assert saved_config.agents[agent_id].budget.daily_usd == 7.0
 
 
+def test_onboard_claude_code_resyncs_secret_on_rerun(runner, tmp_path):
+    """Re-running --claude-code always writes the current secret, even if OTLP already configured.
+
+    Regression test: previously the guard `if OTEL_EXPORTER_OTLP_ENDPOINT not in global_env`
+    silently skipped updating the secret when settings.json already existed, causing 401s
+    whenever the OCW config was regenerated without re-running onboard --claude-code.
+    """
+    fake_home = tmp_path / "home"
+    (fake_home / ".claude").mkdir(parents=True)
+    settings_path = fake_home / ".claude" / "settings.json"
+
+    old_secret = "aabbccdd" * 8
+    new_secret = "11223344" * 8
+
+    # Simulate settings.json already configured with a now-stale secret
+    settings_path.write_text(json.dumps({
+        "env": {
+            "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+            "OTEL_LOGS_EXPORTER": "otlp",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:7391",
+            "OTEL_EXPORTER_OTLP_HEADERS": f"Authorization=Bearer {old_secret}",
+        }
+    }) + "\n")
+
+    fake_config_path = tmp_path / ".ocw" / "config.toml"
+    fake_config_path.parent.mkdir(parents=True)
+
+    from ocw.core.config import AgentConfig, OcwConfig, SecurityConfig
+    fake_config = OcwConfig(
+        version="1",
+        agents={"claude-code-openclawwatch": AgentConfig()},
+        security=SecurityConfig(ingest_secret=new_secret),
+    )
+
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=str(fake_config_path)), \
+         patch("ocw.core.config.load_config", return_value=fake_config), \
+         patch("ocw.core.config.write_config"), \
+         patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
+         patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
+        result = runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon", "--budget", "5.0"])
+
+    assert result.exit_code == 0
+    data = json.loads(settings_path.read_text())
+    # Secret must be updated to match the current OCW config, not left as stale old value
+    assert data["env"]["OTEL_EXPORTER_OTLP_HEADERS"] == f"Authorization=Bearer {new_secret}"
+
+
+def test_onboard_claude_code_preserves_custom_otlp_headers(runner, tmp_path):
+    """Re-running --claude-code does NOT overwrite manually customised OTEL_EXPORTER_OTLP_HEADERS.
+
+    Only headers that were previously written by ocw (i.e. contain 'Authorization=Bearer')
+    are eligible for syncing. A header set by the user to something else is left untouched.
+    """
+    fake_home = tmp_path / "home"
+    (fake_home / ".claude").mkdir(parents=True)
+    settings_path = fake_home / ".claude" / "settings.json"
+
+    custom_header = "X-Custom-Token: my-own-value"
+
+    settings_path.write_text(json.dumps({
+        "env": {
+            "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+            "OTEL_LOGS_EXPORTER": "otlp",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:7391",
+            "OTEL_EXPORTER_OTLP_HEADERS": custom_header,
+        }
+    }) + "\n")
+
+    fake_config_path = tmp_path / ".ocw" / "config.toml"
+    fake_config_path.parent.mkdir(parents=True)
+
+    from ocw.core.config import AgentConfig, OcwConfig, SecurityConfig
+    fake_config = OcwConfig(
+        version="1",
+        agents={"claude-code-openclawwatch": AgentConfig()},
+        security=SecurityConfig(ingest_secret="newsecret" * 4),
+    )
+
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=str(fake_config_path)), \
+         patch("ocw.core.config.load_config", return_value=fake_config), \
+         patch("ocw.core.config.write_config"), \
+         patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
+         patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
+        result = runner.invoke(cli, ["onboard", "--claude-code", "--no-daemon", "--budget", "5.0"])
+
+    assert result.exit_code == 0
+    data = json.loads(settings_path.read_text())
+    # Manually customised header must survive the re-run
+    assert data["env"]["OTEL_EXPORTER_OTLP_HEADERS"] == custom_header
+
+
 def test_budget_show_displays_defaults(runner, db, config):
     """ocw budget with no flags shows current budgets."""
     result = _invoke(runner, db, config, ["budget"])

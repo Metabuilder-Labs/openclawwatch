@@ -1025,12 +1025,13 @@ function BudgetView() {
   useEffect(() => { load(); }, []);
 
   const handleSave = async (scope, dailyStr, sessionStr) => {
+    // Empty field means "no limit" — send 0 so the server runs validate_budget_value(0) → None.
     const daily = dailyStr !== '' ? parseFloat(dailyStr) : 0;
     const session = sessionStr !== '' ? parseFloat(sessionStr) : 0;
     const updated = await apiPost('/budget', {
       scope,
-      daily_usd: dailyStr !== '' ? daily : null,
-      session_usd: sessionStr !== '' ? session : null,
+      daily_usd: daily,
+      session_usd: session,
     });
     setData(updated);
   };
@@ -1045,7 +1046,7 @@ function BudgetView() {
 
     <div style="font-size:13px;font-weight:600;margin-bottom:8px">Budget limits</div>
     <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">
-      Set 0 to remove a limit. Changes are written to your config file immediately.
+      Clear a field or enter 0 to remove a limit. Changes are written to your config file immediately.
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>Scope</th><th>Daily (USD)</th><th>Per-session (USD)</th><th></th></tr></thead>
