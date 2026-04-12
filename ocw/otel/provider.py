@@ -47,13 +47,15 @@ class OcwSpanExporter(SpanExporter):
         self.pipeline = ingest_pipeline
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        failures = 0
         for otel_span in spans:
             try:
                 normalised = convert_otel_span(otel_span)
                 self.pipeline.process(normalised)
             except Exception as exc:
                 logger.warning("Span export failed: %s", exc)
-        return SpanExportResult.SUCCESS
+                failures += 1
+        return SpanExportResult.FAILURE if failures > 0 else SpanExportResult.SUCCESS
 
     def shutdown(self) -> None:
         pass
@@ -81,6 +83,7 @@ def convert_otel_span(otel_span: ReadableSpan) -> NormalizedSpan:
     request_type = attrs.pop(GenAIAttributes.REQUEST_TYPE, None)
     agent_id = attrs.pop(GenAIAttributes.AGENT_ID, None)
     cost_usd = attrs.pop(OcwAttributes.COST_USD, None)
+    session_id = attrs.pop(OcwAttributes.SESSION_ID, None)
 
     # Convert int tokens to int (OTel may store as strings)
     if input_tokens is not None:
@@ -138,6 +141,7 @@ def convert_otel_span(otel_span: ReadableSpan) -> NormalizedSpan:
         duration_ms=duration_ms,
         parent_span_id=parent_span_id,
         agent_id=agent_id,
+        session_id=session_id,
         provider=provider,
         model=model,
         tool_name=tool_name,
