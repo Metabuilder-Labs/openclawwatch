@@ -17,19 +17,41 @@ def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
     bind_host = host or config.api.host
     bind_port = port or config.api.port
 
-    # Schedule retention cleanup
+    import uvicorn
+    from ocw.api.app import create_app
+    from ocw.core.ingest import IngestPipeline
+    from ocw.core.cost import CostEngine
+
+    db = ctx.obj["db"]
+    cost_engine = CostEngine(db)
+    pipeline = IngestPipeline(db, config, cost_engine=cost_engine)
+    app = create_app(config, db, pipeline)
+
+    # Schedule retention cleanup using a separate DB connection per run
+    # to avoid concurrent write conflicts with uvicorn worker threads.
     from apscheduler.schedulers.background import BackgroundScheduler
     from ocw.core.retention import run_retention_cleanup
+    from ocw.core.db import DuckDBBackend
+
+    def _retention_job() -> None:
+        retention_db = DuckDBBackend(config.storage)
+        try:
+            run_retention_cleanup(retention_db, config.storage)
+        finally:
+            retention_db.close()
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(
-        run_retention_cleanup,
+        _retention_job,
         "cron",
         hour=0,
         minute=0,
-        args=[ctx.obj["db"], config.storage],
     )
     scheduler.start()
+
+    @app.on_event("shutdown")
+    async def _shutdown_scheduler() -> None:
+        scheduler.shutdown(wait=False)
 
     console.print(f"[bold]ocw serve[/bold] starting on http://{bind_host}:{bind_port}")
     console.print(f"  API docs:    http://{bind_host}:{bind_port}/docs")
@@ -37,25 +59,9 @@ def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
         console.print(f"  Metrics:     http://{bind_host}:{bind_port}/metrics")
     console.print()
 
-    import uvicorn
-    from ocw.api.app import create_app
-    from ocw.core.ingest import IngestPipeline
-    from ocw.core.cost import CostEngine
-    from ocw.core.alerts import AlertEngine
-    from ocw.core.schema_validator import SchemaValidator
-    from ocw.core.drift import DriftDetector
-
-    db = ctx.obj["db"]
-    cost_engine = CostEngine(db)
-    alert_engine = AlertEngine(db, config)
-    schema_validator = SchemaValidator(db, alert_engine, config)
-    drift_detector = DriftDetector(db, alert_engine, config)
-    pipeline = IngestPipeline(
-        db, config,
-        cost_engine=cost_engine,
-        alert_engine=alert_engine,
-        schema_validator=schema_validator,
-        drift_detector=drift_detector,
-    )
-    app = create_app(config, db, pipeline)
-    uvicorn.run(app, host=bind_host, port=bind_port, reload=reload)
+    if reload:
+        console.print(
+            "[yellow]Warning: --reload requires an import string, not an app instance. "
+            "Reload mode is not supported with injected db/config — ignoring --reload.[/yellow]"
+        )
+    uvicorn.run(app, host=bind_host, port=bind_port)
