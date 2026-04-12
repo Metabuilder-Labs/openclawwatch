@@ -145,7 +145,8 @@ def test_drift_does_not_fire_within_threshold(db):
     alert_engine = MagicMock()
     detector = DriftDetector(db, alert_engine, config)
 
-    # Build baseline with some variance
+    # Build baseline with some variance in input_tokens; output_tokens and
+    # duration are uniform so the test focuses purely on input_token drift.
     for tokens in [900, 1000, 1100, 950, 1050]:
         s = make_session(agent_id="test-agent", status="completed",
                          input_tokens=tokens, duration_seconds=60.0)
@@ -155,13 +156,14 @@ def test_drift_does_not_fire_within_threshold(db):
     db.upsert_session(trigger)
     detector.on_session_end("test-agent", trigger)
 
-    # Session with slightly above average tokens — within threshold
+    # Session with slightly above average input_tokens — within threshold.
+    # output_tokens and duration match the baseline exactly (both 0 / 60s)
+    # so only the input dimension is evaluated for drift.
     normal = make_session(
         agent_id="test-agent",
         status="completed",
         input_tokens=1050,
-        output_tokens=200,
-        duration_seconds=62.0,
+        duration_seconds=60.0,
     )
     db.upsert_session(normal)
     detector.on_session_end("test-agent", normal)
