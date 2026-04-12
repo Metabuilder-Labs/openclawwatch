@@ -175,6 +175,13 @@ MIGRATIONS: list[tuple[int, str]] = [
         "DROP INDEX IF EXISTS idx_spans_tool_name;\n"
         "DROP INDEX IF EXISTS idx_spans_conv_id"
     )),
+    (3, (
+        "CREATE INDEX IF NOT EXISTS idx_spans_trace_id    ON spans(trace_id);\n"
+        "CREATE INDEX IF NOT EXISTS idx_spans_agent_id    ON spans(agent_id);\n"
+        "CREATE INDEX IF NOT EXISTS idx_spans_start_time  ON spans(start_time);\n"
+        "CREATE INDEX IF NOT EXISTS idx_spans_tool_name   ON spans(tool_name);\n"
+        "CREATE INDEX IF NOT EXISTS idx_spans_conv_id     ON spans(conversation_id)"
+    )),
 ]
 
 
@@ -381,23 +388,25 @@ class DuckDBBackend:
     # -- reads --
 
     def get_session(self, session_id: str) -> SessionRecord | None:
-        rows = self.conn.execute(
+        cur = self.conn.execute(
             "SELECT * FROM sessions WHERE session_id = $1", [session_id]
-        ).fetchall()
+        )
+        rows = cur.fetchall()
         if not rows:
             return None
-        cols = [d[0] for d in self.conn.description]
+        cols = [d[0] for d in cur.description]
         return _row_to_session(rows[0], cols)
 
     def get_session_by_conversation(self, conversation_id: str) -> SessionRecord | None:
-        rows = self.conn.execute(
+        cur = self.conn.execute(
             "SELECT * FROM sessions WHERE conversation_id = $1 "
             "ORDER BY started_at DESC LIMIT 1",
             [conversation_id],
-        ).fetchall()
+        )
+        rows = cur.fetchall()
         if not rows:
             return None
-        cols = [d[0] for d in self.conn.description]
+        cols = [d[0] for d in cur.description]
         return _row_to_session(rows[0], cols)
 
     def get_traces(self, filters: TraceFilters) -> list[TraceRecord]:
@@ -426,14 +435,18 @@ class DuckDBBackend:
             idx += 1
         where = " AND ".join(clauses) if clauses else "1=1"
         sql = (
-            f"SELECT trace_id, agent_id, name, "
+            f"SELECT trace_id, MAX(agent_id) AS agent_id, "
+            f"(SELECT name FROM spans s2 WHERE s2.trace_id = spans.trace_id "
+            f" ORDER BY start_time LIMIT 1) AS name, "
             f"MIN(start_time) AS start_time, "
             f"SUM(duration_ms) AS duration_ms, "
             f"SUM(cost_usd) AS cost_usd, "
-            f"MIN(status_code) AS status_code, "
+            f"CASE WHEN SUM(CASE WHEN status_code='error' THEN 1 ELSE 0 END) > 0 THEN 'error' "
+            f"     WHEN SUM(CASE WHEN status_code='ok' THEN 1 ELSE 0 END) > 0 THEN 'ok' "
+            f"     ELSE 'unset' END AS status_code, "
             f"COUNT(*) AS span_count "
             f"FROM spans WHERE {where} "
-            f"GROUP BY trace_id, agent_id, name "
+            f"GROUP BY trace_id "
             f"ORDER BY start_time DESC "
             f"LIMIT ${idx} OFFSET ${idx + 1}"
         )
@@ -442,17 +455,18 @@ class DuckDBBackend:
         return [
             TraceRecord(
                 trace_id=r[0], agent_id=r[1], name=r[2], start_time=r[3],
-                duration_ms=r[4], cost_usd=r[5], status_code=r[6] or "ok",
+                duration_ms=r[4], cost_usd=r[5], status_code=r[6],
                 span_count=r[7],
             )
             for r in rows
         ]
 
     def get_trace_spans(self, trace_id: str) -> list[NormalizedSpan]:
-        rows = self.conn.execute(
+        cur = self.conn.execute(
             "SELECT * FROM spans WHERE trace_id = $1 ORDER BY start_time", [trace_id]
-        ).fetchall()
-        cols = [d[0] for d in self.conn.description]
+        )
+        rows = cur.fetchall()
+        cols = [d[0] for d in cur.description]
         return [_row_to_span(r, cols) for r in rows]
 
     def get_cost_summary(self, filters: CostFilters) -> list[CostRow]:
@@ -481,15 +495,27 @@ class DuckDBBackend:
             idx += 1
         where = " AND ".join(clauses)
 
-        sql = (
-            f"SELECT {group_expr} AS grp, agent_id, model, "
-            f"COALESCE(SUM(input_tokens), 0), "
-            f"COALESCE(SUM(output_tokens), 0), "
-            f"COALESCE(SUM(cost_usd), 0.0) "
-            f"FROM spans WHERE {where} "
-            f"GROUP BY grp, agent_id, model "
-            f"ORDER BY grp DESC"
-        )
+        if filters.group_by in ("agent", "model"):
+            sql = (
+                f"SELECT {group_expr} AS grp, agent_id, model, "
+                f"COALESCE(SUM(input_tokens), 0), "
+                f"COALESCE(SUM(output_tokens), 0), "
+                f"COALESCE(SUM(cost_usd), 0.0) "
+                f"FROM spans WHERE {where} "
+                f"GROUP BY grp, agent_id, model "
+                f"ORDER BY grp DESC"
+            )
+        else:
+            # day / tool: group only by the primary expression to avoid cross-product
+            sql = (
+                f"SELECT {group_expr} AS grp, NULL AS agent_id, NULL AS model, "
+                f"COALESCE(SUM(input_tokens), 0), "
+                f"COALESCE(SUM(output_tokens), 0), "
+                f"COALESCE(SUM(cost_usd), 0.0) "
+                f"FROM spans WHERE {where} "
+                f"GROUP BY grp "
+                f"ORDER BY grp DESC"
+            )
         rows = self.conn.execute(sql, params).fetchall()
         return [
             CostRow(
@@ -529,8 +555,9 @@ class DuckDBBackend:
             f"ORDER BY fired_at DESC LIMIT ${idx}"
         )
         params.append(filters.limit)
-        rows = self.conn.execute(sql, params).fetchall()
-        cols = [d[0] for d in self.conn.description]
+        cur = self.conn.execute(sql, params)
+        rows = cur.fetchall()
+        cols = [d[0] for d in cur.description]
         results = []
         for row in rows:
             d = dict(zip(cols, row))
@@ -553,12 +580,13 @@ class DuckDBBackend:
         return results
 
     def get_baseline(self, agent_id: str) -> DriftBaseline | None:
-        rows = self.conn.execute(
+        cur = self.conn.execute(
             "SELECT * FROM drift_baselines WHERE agent_id = $1", [agent_id]
-        ).fetchall()
+        )
+        rows = cur.fetchall()
         if not rows:
             return None
-        cols = [d[0] for d in self.conn.description]
+        cols = [d[0] for d in cur.description]
         d = dict(zip(cols, rows[0]))
         cts = d.get("common_tool_sequences")
         if isinstance(cts, str):
@@ -583,12 +611,13 @@ class DuckDBBackend:
         )
 
     def get_completed_sessions(self, agent_id: str, limit: int) -> list[SessionRecord]:
-        rows = self.conn.execute(
+        cur = self.conn.execute(
             "SELECT * FROM sessions WHERE agent_id = $1 AND status = 'completed' "
             "ORDER BY started_at DESC LIMIT $2",
             [agent_id, limit],
-        ).fetchall()
-        cols = [d[0] for d in self.conn.description]
+        )
+        rows = cur.fetchall()
+        cols = [d[0] for d in cur.description]
         return [_row_to_session(r, cols) for r in rows]
 
     def get_completed_session_count(self, agent_id: str) -> int:
@@ -645,11 +674,12 @@ class DuckDBBackend:
         return float(result[0]) if result else 0.0
 
     def get_recent_spans(self, session_id: str, limit: int) -> list[NormalizedSpan]:
-        rows = self.conn.execute(
+        cur = self.conn.execute(
             "SELECT * FROM spans WHERE session_id = $1 ORDER BY start_time DESC LIMIT $2",
             [session_id, limit],
-        ).fetchall()
-        cols = [d[0] for d in self.conn.description]
+        )
+        rows = cur.fetchall()
+        cols = [d[0] for d in cur.description]
         return [_row_to_span(r, cols) for r in rows]
 
     def delete_spans_before(self, cutoff: datetime) -> int:
