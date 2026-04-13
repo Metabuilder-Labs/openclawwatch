@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`ocw` (OpenClawWatch) is a local-first, OTel-native observability CLI for AI agents. No cloud backend, no signup. It captures telemetry from agent runtimes, stores it in a local DuckDB database, and exposes a CLI + local REST API for querying. Install via `pip install ocw`, run via `ocw <subcommand>`. Requires Python >=3.10.
+`ocw` (OpenClawWatch) is a local-first, OTel-native observability CLI for AI agents. No cloud backend, no signup. It captures telemetry from agent runtimes, stores it in a local DuckDB database, and exposes a CLI + local REST API for querying. Install via `pip install openclawwatch`, run via `ocw <subcommand>`. Requires Python >=3.10.
 
 ## Build & Development
 
@@ -184,6 +184,6 @@ Build system is hatchling. The `pyproject.toml` requires `[tool.hatch.build.targ
 
 Key runtime dependency: `pytz` is required by DuckDB for `TIMESTAMPTZ` column handling — it's listed explicitly in `dependencies` because DuckDB doesn't declare it on all platforms.
 
-## Task Specs
+## Further Reading
 
-Implementation specs for initial development live in `.claude/` (00-foundation.md through 11-test-harness.md). These are historical — all tasks are complete. They remain useful as architectural reference for understanding design intent behind each module.
+- **[docs/architecture.md](docs/architecture.md)** — comprehensive architecture document covering design principles, system overview, data flow, SDK internals, alert system, drift detection, MCP server, Claude Code integration, budget system, and testing architecture.
