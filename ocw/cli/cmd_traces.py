@@ -22,9 +22,13 @@ def cmd_traces(ctx: click.Context, agent: str | None, since: str, limit: int,
     """List recent traces."""
     db = ctx.obj["db"]
     agent_filter = agent or ctx.obj.get("agent")
+    try:
+        since_dt = parse_since(since)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="'--since'") from exc
     filters = TraceFilters(
         agent_id=agent_filter,
-        since=parse_since(since),
+        since=since_dt,
         span_name=span_type,
         status=status,
         limit=limit,
@@ -78,17 +82,18 @@ def cmd_trace(ctx: click.Context, trace_id: str, output_json: bool) -> None:
 
     # Support prefix matching (like git short hashes)
     if not spans and len(trace_id) < 32:
-        rows = db.conn.execute(
-            "SELECT DISTINCT trace_id FROM spans WHERE trace_id LIKE $1 LIMIT 2",
-            [trace_id + "%"],
-        ).fetchall()
-        if len(rows) == 1:
-            trace_id = rows[0][0]
-            spans = db.get_trace_spans(trace_id)
-        elif len(rows) > 1:
-            console.print(f"[red]Ambiguous prefix '{trace_id}' — matches "
-                          f"{len(rows)} traces. Use more characters.[/red]")
-            return
+        if hasattr(db, "conn"):
+            rows = db.conn.execute(
+                "SELECT DISTINCT trace_id FROM spans WHERE trace_id LIKE $1 LIMIT 2",
+                [trace_id + "%"],
+            ).fetchall()
+            if len(rows) == 1:
+                trace_id = rows[0][0]
+                spans = db.get_trace_spans(trace_id)
+            elif len(rows) > 1:
+                console.print(f"[red]Ambiguous prefix '{trace_id}' — matches "
+                              f"{len(rows)} traces. Use more characters.[/red]")
+                return
 
     if not spans:
         console.print(f"[dim]No spans found for trace {trace_id}[/dim]")

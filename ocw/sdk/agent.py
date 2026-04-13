@@ -154,6 +154,7 @@ def record_llm_call(
         span.set_attribute(GenAIAttributes.PROMPT_CONTENT, prompt)
     if completion is not None:
         span.set_attribute(GenAIAttributes.COMPLETION_CONTENT, completion)
+    span.set_status(trace.Status(trace.StatusCode.OK))
     if duration_ms is not None:
         # Set explicit end time based on duration
         start_ns = span.start_time
@@ -161,7 +162,6 @@ def record_llm_call(
             end_ns = start_ns + int(duration_ms * 1_000_000)
             span.end(end_time=end_ns)
             return
-    span.set_status(trace.Status(trace.StatusCode.OK))
     span.end()
 
 

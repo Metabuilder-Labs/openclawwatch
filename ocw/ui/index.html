@@ -161,6 +161,42 @@ code, .mono {
 .budget-bar-fill.warn { background: var(--warn); }
 .budget-bar-fill.over { background: var(--error); }
 
+/* Info tooltip */
+.info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-family: sans-serif;
+  cursor: default;
+  position: relative;
+  margin-left: 4px;
+  vertical-align: middle;
+  line-height: 1;
+}
+.info-btn .info-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+.info-btn:hover .info-tip { display: block; }
+
 /* Tables */
 .table-wrap { overflow-x: auto; }
 table {
@@ -598,12 +634,19 @@ function StatusView() {
 // ============================
 function TracesListView() {
   const [traces, setTraces] = useState([]);
+  const [agentStatus, setAgentStatus] = useState({});
   const [since, setSince] = useState('24h');
   const [statusF, setStatusF] = useState('');
 
   const load = useCallback(async () => {
-    const d = await api('/traces', { since, status: statusF || undefined, limit: 100 });
-    setTraces(d.traces || []);
+    const [td, sd] = await Promise.all([
+      api('/traces', { since, status: statusF || undefined, limit: 100 }),
+      api('/status'),
+    ]);
+    setTraces(td.traces || []);
+    const map = {};
+    for (const a of (sd.agents || [])) map[a.agent_id] = a.status;
+    setAgentStatus(map);
   }, [since, statusF]);
 
   useEffect(() => { load(); }, [load]);
@@ -619,7 +662,7 @@ function TracesListView() {
         <option value="7d">Last 7d</option>
       </select>
       <select value=${statusF} onChange=${e => setStatusF(e.target.value)}>
-        <option value="">All statuses</option>
+        <option value="">All results</option>
         <option value="ok">ok</option>
         <option value="error">error</option>
       </select>
@@ -627,9 +670,11 @@ function TracesListView() {
     </div>
     ${traces.length === 0 ? html`<div class="empty">No traces yet. Run an agent with ${'`@watch()`'} to start recording.</div>` : html`
       <div class="table-wrap"><table>
-        <thead><tr><th>Agent</th><th>Type</th><th>Time</th><th>Duration</th><th>Cost</th><th>Status</th><th>Spans</th><th></th></tr></thead>
+        <thead><tr><th>Agent</th><th>Type</th><th>Time</th><th>Duration</th><th>Cost</th><th>Result <span class="info-btn">i<span class="info-tip">Shows "error" if even a single span in this trace failed</span></span></th><th>Status <span class="info-btn">i<span class="info-tip">Agent liveness: active (seen in last 5 min), stale (no recent spans), completed or idle</span></span></th><th>Spans</th><th></th></tr></thead>
         <tbody>
-          ${dedup(traces).map(t => html`
+          ${dedup(traces).map(t => {
+            const st = agentStatus[t.agent_id];
+            return html`
             <tr class="clickable" onClick=${() => location.hash = '#/traces/' + t.trace_id} title=${'Trace ' + t.trace_id}>
               <td class="mono">${t.agent_id || '-'}</td>
               <td>${friendlySpanName(t.name)}</td>
@@ -637,10 +682,11 @@ function TracesListView() {
               <td>${fmtDur(t.duration_ms)}</td>
               <td>${fmtCost(t.cost_usd)}</td>
               <td><span class="badge badge-${t.status_code}">${t.status_code}</span></td>
+              <td>${st ? html`<span class="status-dot ${st}" style="margin-right:5px"></span><span class="badge badge-${st}">${st}</span>` : html`<span style="color:var(--text-dim)">-</span>`}</td>
               <td>${t.span_count}</td>
               <td class="chevron">\u2192</td>
             </tr>
-          `)}
+          `})}
         </tbody>
       </table></div>
     `}

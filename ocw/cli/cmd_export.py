@@ -104,6 +104,9 @@ def _export_csv(db: object, traces: list) -> str:
     return buf.getvalue()
 
 
+_KIND_MAP = {"internal": 1, "server": 2, "client": 3, "producer": 4, "consumer": 5}
+
+
 def _export_otlp(ctx: click.Context, db: object, traces: list) -> None:
     config = ctx.obj["config"]
     if not config.export.otlp.enabled:
@@ -117,6 +120,8 @@ def _export_otlp(ctx: click.Context, db: object, traces: list) -> None:
     headers.setdefault("Content-Type", "application/json")
 
     seen_traces: set[str] = set()
+    succeeded = 0
+    failed = 0
     for t in traces:
         if t.trace_id in seen_traces:
             continue
@@ -133,7 +138,7 @@ def _export_otlp(ctx: click.Context, db: object, traces: list) -> None:
                             "traceId": s.trace_id,
                             "spanId": s.span_id,
                             "name": s.name,
-                            "kind": 1,
+                            "kind": _KIND_MAP.get(s.kind.value, 1) if s.kind else 1,
                             "startTimeUnixNano": str(int(s.start_time.timestamp() * 1e9))
                             if s.start_time else "0",
                             "endTimeUnixNano": str(int(s.end_time.timestamp() * 1e9))
@@ -148,9 +153,12 @@ def _export_otlp(ctx: click.Context, db: object, traces: list) -> None:
         if resp.status_code >= 400:
             console.print(f"[red]OTLP export failed for trace {t.trace_id}: "
                           f"{resp.status_code}[/red]")
-            return
+            failed += 1
+        else:
+            succeeded += 1
 
-    console.print(f"[green]Exported {len(traces)} traces to {endpoint}[/green]")
+    console.print(f"[green]Exported {succeeded} traces to {endpoint}[/green]"
+                  + (f" ({failed} failed)" if failed else ""))
 
 
 def _export_openevals(db: object, traces: list) -> str:

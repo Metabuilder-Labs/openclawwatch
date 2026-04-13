@@ -87,6 +87,7 @@ class ClaudeCodeEvents:
 class OcwAttributes:
     """ocw-specific span attributes (non-standard extensions)."""
     COST_USD         = "ocw.cost_usd"
+    SESSION_ID       = "session.id"
     ALERT_TYPE       = "ocw.alert.type"
     ALERT_SEVERITY   = "ocw.alert.severity"
     # NemoClaw / OpenShell sandbox events

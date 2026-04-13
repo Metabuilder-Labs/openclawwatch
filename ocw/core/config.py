@@ -148,6 +148,9 @@ class OcwConfig:
     security: SecurityConfig          = field(default_factory=SecurityConfig)
     api:      ApiConfig               = field(default_factory=ApiConfig)
     capture:  CaptureConfig           = field(default_factory=CaptureConfig)
+    # Path to the config file on disk; set by load_config() so that relative
+    # paths in the config (e.g. output_schema) can be resolved correctly.
+    config_path: Path | None          = field(default=None, repr=False, compare=False)
 
 
 # -- File discovery --
@@ -185,7 +188,9 @@ def load_config(path: str | None = None) -> OcwConfig:
     with open(config_path, "rb") as f:   # "rb" is REQUIRED
         raw = tomllib.load(f)
 
-    return _parse(raw)
+    cfg = _parse(raw)
+    cfg.config_path = config_path.resolve()
+    return cfg
 
 
 def write_config(config: OcwConfig, path: Path) -> None:

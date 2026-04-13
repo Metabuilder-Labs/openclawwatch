@@ -71,6 +71,13 @@ function spanToOtlp(span: Span): OtlpSpan {
 
   if (span.parentSpanId) otlp.parentSpanId = span.parentSpanId;
   if (span.endTime) otlp.endTimeUnixNano = isoToUnixNano(span.endTime);
+  if (span.events?.length) {
+    otlp.events = span.events.map(e => ({
+      timeUnixNano: isoToUnixNano(e.time as string),
+      name: e.name as string,
+      attributes: Object.entries(e.attributes ?? {}).map(([key, value]) => ({ key, value: toOtlpValue(value) })),
+    }));
+  }
 
   return otlp;
 }
