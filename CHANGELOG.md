@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] - 2026-04-13
+
+### Added
+- **MCP server (`ocw mcp`)** — stdio-based Model Context Protocol server giving Claude Code direct access to OCW observability data. 13 tool handlers: status, traces, alerts, budget headroom, cost summary, drift report, tool stats, trace detail, acknowledge alerts, setup project, list sessions, open dashboard. Dual-mode operation: routes queries through REST API when `ocw serve` is running, falls back to read-only DuckDB otherwise. Auto-starts `ocw serve` on demand.
+- **Claude Code integration (`ocw onboard --claude-code`)** — one-command setup for Claude Code telemetry. Configures OTLP log exporter in `~/.claude/settings.json`, sets project-level `OTEL_RESOURCE_ATTRIBUTES`, adds Docker-compatible endpoint to shell env, and optionally installs background daemon. Re-runs resync the auth header to fix 401s without manual setup.
+- **Logs ingestion (`POST /v1/logs`)** — new OTLP log endpoint that converts Claude Code log events (`api_request`, `tool_result`, `api_error`, `user_prompt`, `tool_decision`) into NormalizedSpans with deterministic trace/span IDs. Spans flow through the standard ingest pipeline for cost, alerts, and drift.
+- **`ocw drift` CLI** — behavioral drift report with Rich table output showing baseline vs latest session Z-scores per dimension (input tokens, output tokens, duration, tool call count, tool sequence similarity). Color-coded thresholds, `--json` support, exit code 1 if drift detected.
+- **`ocw budget` CLI + API** — view and set per-agent daily/session cost limits. `GET/POST /api/v1/budget` endpoints. `resolve_effective_budget()` with per-field fallback so each budget dimension independently falls back to defaults.
+- **Architecture documentation** (`docs/architecture.md`) — comprehensive architecture doc covering design principles, data flow, SDK internals, alert system, drift detection, MCP server, Claude Code pipeline, and testing architecture.
+- `ClaudeCodeEvents` semantic conventions in `ocw/otel/semconv.py` for Claude Code log event attributes
+
+### Fixed
+- Budget resolution inconsistency between AlertEngine enforcement and CLI display — both now use `resolve_effective_budget()` with field-level merge
+- Drift display threshold bug in Z-score comparison
+- `ocw stop` now passes `-w` to `launchctl unload` to prevent auto-restart on macOS; added Linux systemd support
+- Waterfall tooltip clipping for right-edge spans in web UI
+- CLAUDE.md install command corrected from `pip install ocw` to `pip install openclawwatch`
+
+### Improved
+- README updated with Claude Code integration section, budget/drift CLI references, MCP server docs
+- Web UI: budget headroom display, cost-today column in active sessions table, tooltip polish
+- Onboard wizard: expanded for Claude Code workflow, status command enhancements
+- MCP tool descriptions optimized for better agent tool selection
+
+### Changed
+- Removed historical task specs from `.claude/specs/` (design intent preserved in `docs/architecture.md`)
+- CLAUDE.md "Task Specs" section replaced with "Further Reading" linking to architecture doc
+- 338 tests passing (up from 223)
+
 ## [0.1.6] - 2026-04-08
 
 ### Improved
