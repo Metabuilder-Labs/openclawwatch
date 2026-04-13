@@ -31,9 +31,13 @@ def cmd_alerts(
 ) -> None:
     """Show alert history."""
     db = ctx.obj["db"]
+    try:
+        since_dt = parse_since(since)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="'--since'") from exc
     filters = AlertFilters(
         agent_id=agent,
-        since=parse_since(since),
+        since=since_dt,
         severity=Severity(severity) if severity else None,
         type=AlertType(alert_type) if alert_type else None,
         unread=unread,

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from ocw.core.ingest import SpanRejectedError
 from ocw.core.models import NormalizedSpan, SpanKind, SpanStatus
-from ocw.otel.semconv import GenAIAttributes
+from ocw.otel.semconv import GenAIAttributes, OcwAttributes
 from ocw.utils.ids import new_span_id
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ def _parse_span(raw: dict, resource_attrs: dict[str, Any]) -> NormalizedSpan:
         attributes=attrs,
         events=[
             {"name": e.get("name", ""), "time": e.get("timeUnixNano"),
-             "attributes": {a["key"]: _otlp_value(a["value"]) for a in e.get("attributes", [])}}
+             "attributes": {a.get("key", ""): _otlp_value(a.get("value", {})) for a in e.get("attributes", [])}}
             for e in raw.get("events", [])
         ],
         # Extract indexed fields from merged attributes
@@ -157,8 +157,10 @@ def _parse_span(raw: dict, resource_attrs: dict[str, Any]) -> NormalizedSpan:
         input_tokens=_safe_int(attrs.get(GenAIAttributes.INPUT_TOKENS)),
         output_tokens=_safe_int(attrs.get(GenAIAttributes.OUTPUT_TOKENS)),
         cache_tokens=_safe_int(attrs.get(GenAIAttributes.CACHE_READ_TOKENS)),
+        cost_usd=_safe_float(attrs.get(OcwAttributes.COST_USD)),
         request_type=attrs.get(GenAIAttributes.REQUEST_TYPE),
         conversation_id=attrs.get(GenAIAttributes.CONVERSATION_ID),
+        session_id=attrs.get("session.id"),
     )
 
 
@@ -187,5 +189,14 @@ def _safe_int(v: Any) -> int | None:
         return None
     try:
         return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(v: Any) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
     except (TypeError, ValueError):
         return None

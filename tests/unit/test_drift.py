@@ -10,8 +10,11 @@ class TestZScore:
     def test_negative_z(self):
         assert z_score(8.0, 10.0, 2.0) == -1.0
 
-    def test_zero_stddev_returns_zero(self):
-        assert z_score(100.0, 10.0, 0.0) == 0.0
+    def test_zero_stddev_nonzero_deviation_returns_inf(self):
+        assert z_score(100.0, 10.0, 0.0) == float("inf")
+
+    def test_zero_stddev_zero_deviation_returns_zero(self):
+        assert z_score(10.0, 10.0, 0.0) == 0.0
 
     def test_large_deviation(self):
         z = z_score(10000.0, 1000.0, 200.0)

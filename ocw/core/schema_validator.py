@@ -116,8 +116,17 @@ class SchemaValidator:
         return None
 
     def _load_schema_file(self, path_str: str) -> dict | None:
-        """Load a JSON Schema from a file path."""
+        """Load a JSON Schema from a file path.
+
+        Relative paths are resolved relative to the config file's parent directory
+        (config.config_path). Falls back to CWD-relative resolution when no config
+        file path is available (e.g. in tests with a synthetic OcwConfig).
+        """
         path = Path(path_str)
+        if not path.is_absolute():
+            config_file_path = getattr(self.config, "config_path", None)
+            if config_file_path is not None:
+                path = Path(config_file_path).parent / path_str
         if not path.exists():
             logger.warning("Schema file not found: %s", path)
             return None

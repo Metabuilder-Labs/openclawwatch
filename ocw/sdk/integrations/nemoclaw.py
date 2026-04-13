@@ -128,13 +128,12 @@ def watch_nemoclaw(
     a default config is loaded.
     """
     from ocw.core.config import load_config
+    from ocw.sdk.bootstrap import ensure_initialised, _pipeline
     if config is None:
         config = load_config()
-    # The pipeline must be provided by the caller or server setup
-    # This function returns an observer that needs pipeline.process()
+    ensure_initialised()
     logger.info("NemoClaw observer created for %s", gateway_url)
-    # Return a placeholder — the actual pipeline must be injected
     return NemoClawGatewayObserver(
-        ingest_pipeline=None,
+        ingest_pipeline=_pipeline,
         gateway_url=gateway_url,
     )

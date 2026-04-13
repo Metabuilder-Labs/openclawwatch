@@ -292,6 +292,54 @@ async def test_docs_endpoint_is_accessible(client):
     assert resp.status_code == 200
 
 
+# ── agent_id normalization ─────────────────────────────────────────────────
+
+async def test_span_without_agent_id_normalizes_to_unknown(client):
+    body = {
+        "resourceSpans": [{
+            "resource": {"attributes": []},
+            "scopeSpans": [{"spans": [_make_otlp_span()]}],
+        }]
+    }
+    resp = await client.post(
+        "/api/v1/spans", json=body,
+        headers={"Authorization": f"Bearer {INGEST_SECRET}"},
+    )
+    assert resp.status_code == 200
+
+    # Verify spans table (the actual fix) — traces must show "unknown", not None
+    traces = await client.get("/api/v1/traces")
+    trace_agents = [t["agent_id"] for t in traces.json()["traces"]]
+    assert "unknown" in trace_agents
+
+    # Verify sessions table agrees
+    status = await client.get("/api/v1/status")
+    status_agents = [a["agent_id"] for a in status.json()["agents"]]
+    assert "unknown" in status_agents
+
+
+async def test_status_and_traces_agree_on_agent_ids(client):
+    # Post a span with NO agent_id — this is the scenario that diverged before the fix
+    body = {
+        "resourceSpans": [{
+            "resource": {"attributes": []},
+            "scopeSpans": [{"spans": [_make_otlp_span()]}],
+        }]
+    }
+    resp = await client.post(
+        "/api/v1/spans", json=body,
+        headers={"Authorization": f"Bearer {INGEST_SECRET}"},
+    )
+    assert resp.status_code == 200
+
+    status = await client.get("/api/v1/status")
+    traces = await client.get("/api/v1/traces")
+
+    status_agents = {a["agent_id"] for a in status.json()["agents"]}
+    trace_agents = {t["agent_id"] for t in traces.json()["traces"]}
+    assert trace_agents == status_agents
+
+
 # ── Budget ─────────────────────────────────────────────────────────────────
 
 async def test_post_budget_zero_clears_limit(db):

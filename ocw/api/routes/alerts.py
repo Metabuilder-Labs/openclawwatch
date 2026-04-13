@@ -1,7 +1,7 @@
 """GET /api/v1/alerts — alert history."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ocw.api.deps import require_api_key
 from ocw.core.models import AlertFilters, AlertType, Severity
@@ -20,11 +20,19 @@ async def get_alerts(
     unread: bool = False,
 ) -> dict:
     db = request.app.state.db
+    try:
+        sev = Severity(severity) if severity else None
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid severity: {severity!r}")
+    try:
+        typ = AlertType(type) if type else None
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid type: {type!r}")
     filters = AlertFilters(
         agent_id=agent_id,
         since=parse_since(since) if since else None,
-        severity=Severity(severity) if severity else None,
-        type=AlertType(type) if type else None,
+        severity=sev,
+        type=typ,
         unread=unread,
     )
     alerts = db.get_alerts(filters)

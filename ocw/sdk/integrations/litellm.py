@@ -105,7 +105,7 @@ class LiteLLMIntegration:
             try:
                 response = integration._original_completion(*args, **kwargs)
                 if is_stream:
-                    return _SyncStreamWrapper(response, span, raw_model)
+                    return _SyncStreamWrapper(response, span, raw_model, token)
                 _record_usage(response, span, raw_model)
                 span.set_status(trace.Status(trace.StatusCode.OK))
                 return response
@@ -117,7 +117,7 @@ class LiteLLMIntegration:
             finally:
                 if not is_stream:
                     span.end()
-                _ocw_litellm_active.reset(token)
+                    _ocw_litellm_active.reset(token)
 
         litellm.completion = patched_completion
 
@@ -149,7 +149,7 @@ class LiteLLMIntegration:
                     *args, **kwargs,
                 )
                 if is_stream:
-                    return _AsyncStreamWrapper(response, span, raw_model)
+                    return _AsyncStreamWrapper(response, span, raw_model, token)
                 _record_usage(response, span, raw_model)
                 span.set_status(trace.Status(trace.StatusCode.OK))
                 return response
@@ -161,7 +161,7 @@ class LiteLLMIntegration:
             finally:
                 if not is_stream:
                     span.end()
-                _ocw_litellm_active.reset(token)
+                    _ocw_litellm_active.reset(token)
 
         litellm.acompletion = patched_acompletion
 
@@ -204,14 +204,16 @@ def _record_usage(response: object, span, model: str) -> None:
 class _SyncStreamWrapper:
     """Wraps a LiteLLM sync stream to capture usage and end the span."""
 
-    def __init__(self, stream, span, model: str):
+    def __init__(self, stream, span, model: str, token):
         self._stream = stream
         self._span = span
         self._model = model
+        self._token = token
         self._usage = None
         self._last_chunk = None
 
     def __iter__(self):
+        _ok = False
         try:
             for chunk in self._stream:
                 usage = getattr(chunk, "usage", None)
@@ -219,6 +221,7 @@ class _SyncStreamWrapper:
                     self._usage = usage
                 self._last_chunk = chunk
                 yield chunk
+            _ok = True
         except Exception as exc:
             self._span.set_status(
                 trace.Status(trace.StatusCode.ERROR, str(exc)),
@@ -246,20 +249,23 @@ class _SyncStreamWrapper:
                     self._span.set_attribute(
                         GenAIAttributes.OUTPUT_TOKENS, completion_tokens,
                     )
-            self._span.set_status(trace.Status(trace.StatusCode.OK))
+            if _ok:
+                self._span.set_status(trace.Status(trace.StatusCode.OK))
             self._span.end()
+            _ocw_litellm_active.reset(self._token)
 
     def __next__(self):
-        return next(iter(self))
+        return self._stream.__next__()
 
 
 class _AsyncStreamWrapper:
     """Wraps a LiteLLM async stream to capture usage and end the span."""
 
-    def __init__(self, stream, span, model: str):
+    def __init__(self, stream, span, model: str, token):
         self._stream = stream
         self._span = span
         self._model = model
+        self._token = token
         self._usage = None
         self._last_chunk = None
 
@@ -267,6 +273,7 @@ class _AsyncStreamWrapper:
         return self._iterate()
 
     async def _iterate(self):
+        _ok = False
         try:
             async for chunk in self._stream:
                 usage = getattr(chunk, "usage", None)
@@ -274,6 +281,7 @@ class _AsyncStreamWrapper:
                     self._usage = usage
                 self._last_chunk = chunk
                 yield chunk
+            _ok = True
         except Exception as exc:
             self._span.set_status(
                 trace.Status(trace.StatusCode.ERROR, str(exc)),
@@ -301,8 +309,10 @@ class _AsyncStreamWrapper:
                     self._span.set_attribute(
                         GenAIAttributes.OUTPUT_TOKENS, completion_tokens,
                     )
-            self._span.set_status(trace.Status(trace.StatusCode.OK))
+            if _ok:
+                self._span.set_status(trace.Status(trace.StatusCode.OK))
             self._span.end()
+            _ocw_litellm_active.reset(self._token)
 
 
 def patch_litellm() -> None:

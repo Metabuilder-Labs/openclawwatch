@@ -24,9 +24,10 @@ if TYPE_CHECKING:
 
 
 def z_score(value: float, mean: float, stddev: float) -> float:
-    """Standard Z-score. Returns 0.0 if stddev is 0 to avoid division by zero."""
+    """Standard Z-score. Returns inf if stddev is 0 and value != mean (maximum anomaly);
+    returns 0.0 if stddev is 0 and value == mean (no deviation)."""
     if stddev == 0:
-        return 0.0
+        return 0.0 if value == mean else float('inf')
     return (value - mean) / stddev
 
 
@@ -52,7 +53,7 @@ def _mean(values: list[float]) -> float:
 def _stddev(values: list[float], mean_val: float) -> float:
     if len(values) < 2:
         return 0.0
-    variance = sum((v - mean_val) ** 2 for v in values) / len(values)
+    variance = sum((v - mean_val) ** 2 for v in values) / (len(values) - 1)
     return math.sqrt(variance)
 
 

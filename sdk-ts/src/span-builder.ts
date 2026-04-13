@@ -78,6 +78,7 @@ export class SpanBuilder {
 
   sessionId(id: string): this {
     this.span.sessionId = id;
+    this.span.attributes["gen_ai.session.id"] = id;
     return this;
   }
 
@@ -133,10 +134,9 @@ export class SpanBuilder {
   }
 
   build(): Span {
-    if (!this.span.endTime && this.span.durationMs != null) {
-      const start = new Date(this.span.startTime).getTime();
-      this.span.endTime = new Date(start + this.span.durationMs).toISOString();
-    }
-    return { ...this.span, attributes: { ...this.span.attributes } };
+    const endTime = (!this.span.endTime && this.span.durationMs != null)
+      ? new Date(new Date(this.span.startTime).getTime() + this.span.durationMs).toISOString()
+      : this.span.endTime;
+    return { ...this.span, endTime, attributes: { ...this.span.attributes } };
   }
 }

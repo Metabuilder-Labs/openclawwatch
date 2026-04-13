@@ -1,6 +1,7 @@
 """FastAPI application factory. Called by `ocw serve`."""
 from __future__ import annotations
 
+from html import escape as html_escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -86,7 +87,7 @@ def create_app(
         if config.api.auth.enabled and config.api.auth.api_key:
             html = html.replace(
                 "</head>",
-                f'<meta name="ocw-api-key" content="{config.api.auth.api_key}">\n</head>',
+                f'<meta name="ocw-api-key" content="{html_escape(config.api.auth.api_key, quote=True)}">\n</head>',
             )
         return HTMLResponse(html)
 

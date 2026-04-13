@@ -17,9 +17,13 @@ def cmd_cost(ctx: click.Context, agent: str | None, since: str,
              group_by: str, output_json: bool) -> None:
     """Show cost breakdown by agent, model, day, or tool."""
     db = ctx.obj["db"]
+    try:
+        since_dt = parse_since(since)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="'--since'") from exc
     filters = CostFilters(
         agent_id=agent,
-        since=parse_since(since),
+        since=since_dt,
         group_by=group_by,
     )
     rows = db.get_cost_summary(filters)

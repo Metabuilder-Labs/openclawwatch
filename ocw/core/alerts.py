@@ -84,6 +84,9 @@ class AlertEngine:
         self.config = config
         self.cooldown = CooldownTracker(config.alerts.cooldown_seconds)
         self.dispatcher = AlertDispatcher(config)
+        # Tracks the error_count value at which the failure-rate check last fired per session.
+        # Prevents non-deterministic re-firing when the sliding-window count oscillates.
+        self._last_failure_rate_check: dict[str, int] = {}
 
     def evaluate(self, span: NormalizedSpan) -> None:
         """Evaluate all per-span alert rules against this span."""
@@ -202,7 +205,9 @@ class AlertEngine:
     def _check_failure_rate(self, span: NormalizedSpan) -> None:
         """
         In a rolling window of last 20 spans, fire FAILURE_RATE if error rate > 20%.
-        Only check every 5th error span to avoid firing on every single error.
+        Only check when error_count reaches a new multiple of the check interval to
+        avoid firing on every single error and to avoid re-firing when the sliding
+        window count oscillates.
         """
         if not span.session_id or span.status_code.value != "error":
             return
@@ -211,8 +216,11 @@ class AlertEngine:
         if total < _FAILURE_RATE_CHECK_INTERVAL:
             return
         error_count = sum(1 for s in recent if s.status_code.value == "error")
-        if error_count % _FAILURE_RATE_CHECK_INTERVAL != 0:
+        session_key = span.session_id
+        last_checked = self._last_failure_rate_check.get(session_key, 0)
+        if error_count < _FAILURE_RATE_CHECK_INTERVAL or error_count <= last_checked:
             return
+        self._last_failure_rate_check[session_key] = error_count
         rate = error_count / total
         if rate > _FAILURE_RATE_THRESHOLD:
             alert = Alert(
@@ -272,8 +280,9 @@ class AlertEngine:
 
     def _check_cost_budgets(self, session: SessionRecord) -> None:
         """Check daily and session cost thresholds against the agent's budget config."""
+        from ocw.core.config import BudgetConfig
         budget = resolve_effective_budget(session.agent_id, self.config)
-        if budget.daily_usd is None and budget.session_usd is None:
+        if budget == BudgetConfig():
             return
 
         # Session budget
@@ -364,6 +373,10 @@ class AlertDispatcher:
 
     def dispatch(self, alert: Alert) -> None:
         for channel in self.channels:
+            # Enforce min_severity gate centrally so every channel type honours it.
+            min_sev = getattr(channel, "min_severity", None)
+            if min_sev is not None and _severity_rank(alert.severity) < _severity_rank(min_sev):
+                continue
             try:
                 channel.send(alert)
             except Exception as exc:
@@ -376,9 +389,13 @@ def _build_channel(
     """Factory: return the correct channel instance for the config type."""
     match config.type:
         case "stdout":
-            return StdoutChannel()
+            return StdoutChannel(min_severity=Severity(config.min_severity))
         case "file":
-            return FileChannel(config.path or "alerts.jsonl", include_captured_content)
+            return FileChannel(
+                config.path or "alerts.jsonl",
+                include_captured_content,
+                min_severity=Severity(config.min_severity),
+            )
         case "ntfy":
             return NtfyChannel(config, include_captured_content)
         case "webhook":
@@ -436,6 +453,9 @@ class StdoutChannel(AlertChannel):
     Always includes full detail (no content stripping).
     """
 
+    def __init__(self, min_severity: Severity = Severity.INFO) -> None:
+        self.min_severity = min_severity
+
     def send(self, alert: Alert) -> None:
         time_str = alert.fired_at.strftime("%H:%M:%S")
         sev = alert.severity.value.upper()
@@ -455,10 +475,12 @@ class FileChannel(AlertChannel):
     Always includes full detail (no content stripping).
     """
 
-    def __init__(self, path: str, include_captured_content: bool) -> None:
+    def __init__(self, path: str, include_captured_content: bool,
+                 min_severity: Severity = Severity.INFO) -> None:
         self.path = path
         # File channels always get full payload regardless of config
         self._include_captured_content = True
+        self.min_severity = min_severity
 
     def send(self, alert: Alert) -> None:
         from pathlib import Path
@@ -502,6 +524,7 @@ class WebhookChannel(AlertChannel):
         self.method = config.method
         self.headers = config.headers
         self._include_captured_content = include_captured_content
+        self.min_severity = Severity(config.min_severity)
 
     def send(self, alert: Alert) -> None:
         if not self.url:
@@ -522,6 +545,7 @@ class DiscordChannel(AlertChannel):
     def __init__(self, config: AlertChannelConfig, include_captured_content: bool) -> None:
         self.webhook_url = config.webhook_url or ""
         self._include_captured_content = include_captured_content
+        self.min_severity = Severity(config.min_severity)
 
     def send(self, alert: Alert) -> None:
         if not self.webhook_url:
@@ -556,6 +580,7 @@ class TelegramChannel(AlertChannel):
         self.bot_token = config.bot_token or ""
         self.chat_id = config.chat_id or ""
         self._include_captured_content = include_captured_content
+        self.min_severity = Severity(config.min_severity)
 
     def send(self, alert: Alert) -> None:
         if not self.bot_token or not self.chat_id:

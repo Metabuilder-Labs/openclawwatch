@@ -101,11 +101,16 @@ class _StreamWrapper:
         self._usage = None
 
     def __iter__(self):
+        _ok = False
         try:
             for chunk in self._stream:
                 if hasattr(chunk, "usage") and chunk.usage:
                     self._usage = chunk.usage
                 yield chunk
+            _ok = True
+        except Exception as exc:
+            self._span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+            raise
         finally:
             if self._usage:
                 self._span.set_attribute(
@@ -116,11 +121,12 @@ class _StreamWrapper:
                     GenAIAttributes.OUTPUT_TOKENS,
                     self._usage.completion_tokens,
                 )
-            self._span.set_status(trace.Status(trace.StatusCode.OK))
+            if _ok:
+                self._span.set_status(trace.Status(trace.StatusCode.OK))
             self._span.end()
 
     def __next__(self):
-        return next(iter(self))
+        return self._stream.__next__()
 
 
 def patch_openai(base_url: str | None = None) -> None:

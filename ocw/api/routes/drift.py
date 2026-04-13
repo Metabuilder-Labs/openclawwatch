@@ -52,6 +52,8 @@ async def get_drift(request: Request, agent_id: str | None = None):
         return _build_agent_drift(db, agent_id)
 
     # No agent_id: return drift info for all agents with baselines.
+    if not hasattr(db, "conn"):
+        return {"agents": []}
     rows = db.conn.execute(
         "SELECT DISTINCT agent_id FROM drift_baselines ORDER BY agent_id"
     ).fetchall()

@@ -63,7 +63,7 @@ def _span_to_otlp(span: ReadableSpan) -> dict:
         "traceId": format(ctx.trace_id, "032x") if ctx else "",
         "spanId": format(ctx.span_id, "016x") if ctx else "",
         "name": span.name,
-        "kind": span.kind.value if span.kind else 1,
+        "kind": (span.kind.value + 1) if span.kind is not None else 1,
         "startTimeUnixNano": str(span.start_time or 0),
         "endTimeUnixNano": str(span.end_time or 0),
         "attributes": attrs,

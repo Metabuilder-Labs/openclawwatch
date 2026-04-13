@@ -130,7 +130,6 @@ class AnthropicIntegration:
                         span.set_attribute(GenAIAttributes.CONVERSATION_ID, conv_id)
                 try:
                     stream = integration._original_stream(self_msg, *args, **kwargs)
-                    span.set_status(trace.Status(trace.StatusCode.OK))
                     return _StreamWrapper(stream, span)
                 except Exception as exc:
                     span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
@@ -167,8 +166,8 @@ class _StreamWrapper:
         self._stream.__enter__()
         return self
 
-    def __exit__(self, *args):
-        result = self._stream.__exit__(*args)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        result = self._stream.__exit__(exc_type, exc_val, exc_tb)
         final_message = getattr(self._stream, "get_final_message", lambda: None)()
         if final_message and hasattr(final_message, "usage"):
             self._span.set_attribute(
@@ -179,6 +178,10 @@ class _StreamWrapper:
                 GenAIAttributes.OUTPUT_TOKENS,
                 final_message.usage.output_tokens,
             )
+        if exc_type is None:
+            self._span.set_status(trace.Status(trace.StatusCode.OK))
+        else:
+            self._span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc_val)))
         self._span.end()
         return result
 
