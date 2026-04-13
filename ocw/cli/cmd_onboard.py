@@ -49,12 +49,7 @@ def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
 
     ingest_secret = secrets.token_hex(32)
 
-    want_daemon = install_daemon or (
-        not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive across reboots)?",
-            default=False,
-        )
-    )
+    want_daemon = not no_daemon
 
     config_path = Path(".ocw/config.toml")
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -252,12 +247,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:{port}
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
 """)
 
-    want_daemon = install_daemon or (
-        not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive across reboots)?",
-            default=False,
-        )
-    )
+    want_daemon = not no_daemon
     if want_daemon:
         _install_daemon()
 
