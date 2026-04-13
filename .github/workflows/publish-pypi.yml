@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install build ".[dev]"
+        run: pip install build ".[dev,mcp]"
 
       - name: Run tests
         run: pytest tests/unit/ tests/synthetic/ tests/agents/ tests/integration/ -x
