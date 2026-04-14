@@ -57,26 +57,42 @@ def cmd_uninstall(ctx: click.Context, yes: bool) -> None:
         systemd_path.unlink()
         console.print(f"  Removed {systemd_path}")
 
-    # 5. Delete ~/.ocw/
+    # 5. Delete ~/.ocw/ (telemetry DB)
     ocw_dir = Path.home() / ".ocw"
     if ocw_dir.exists():
         shutil.rmtree(ocw_dir)
         console.print(f"  Removed {ocw_dir}")
 
-    # 6. Delete local .ocw/ if present
+    # 6. Read projects index BEFORE deleting the global config dir.
+    global_config_dir = Path.home() / ".config" / "ocw"
+    project_paths: list[Path] = []
+    projects_index = global_config_dir / "projects.json"
+    try:
+        if projects_index.exists():
+            paths = json.loads(projects_index.read_text())
+            project_paths = [Path(p) for p in paths if isinstance(p, str)]
+    except Exception:
+        pass
+
+    # 7. Delete global config ~/.config/ocw/
+    if global_config_dir.exists():
+        shutil.rmtree(global_config_dir)
+        console.print(f"  Removed {global_config_dir}")
+
+    # 8. Delete local .ocw/ if present
     local_ocw = Path(".ocw")
     if local_ocw.exists():
         shutil.rmtree(local_ocw)
         console.print(f"  Removed {local_ocw}")
 
-    # 7. Delete temp files
+    # 9. Delete temp files
     for tmp_file in ["/tmp/ocw-serve.out", "/tmp/ocw-serve.err"]:
         p = Path(tmp_file)
         if p.exists():
             p.unlink()
             console.print(f"  Removed {tmp_file}")
 
-    # 8. Remove OCW env vars from ~/.claude/settings.json (Gap #7)
+    # 10. Remove OCW env vars from ~/.claude/settings.json
     _GLOBAL_OCW_KEYS = {
         "CLAUDE_CODE_ENABLE_TELEMETRY",
         "OTEL_LOGS_EXPORTER",
@@ -99,28 +115,37 @@ def cmd_uninstall(ctx: click.Context, yes: bool) -> None:
         except Exception as exc:
             console.print(f"  [yellow]Could not clean {global_settings_path}: {exc}[/yellow]")
 
-    # 9. Remove OTEL_RESOURCE_ATTRIBUTES from project .claude/settings.json (Gap #7)
-    project_settings_path = Path.cwd() / ".claude" / "settings.json"
-    if project_settings_path.exists():
+    # 11. Remove OTEL_RESOURCE_ATTRIBUTES from all onboarded project .claude/settings.json files.
+    # project_paths was read from projects.json before the global config dir was deleted above.
+    # Always include CWD so running uninstall from a project dir works even without the index
+    cwd = Path.cwd()
+    if cwd not in project_paths:
+        project_paths.append(cwd)
+
+    for proj in project_paths:
+        proj_settings = proj / ".claude" / "settings.json"
+        if not proj_settings.exists():
+            continue
         try:
-            ps = json.loads(project_settings_path.read_text())
+            ps = json.loads(proj_settings.read_text())
             env = ps.get("env", {})
             if "OTEL_RESOURCE_ATTRIBUTES" in env:
                 del env["OTEL_RESOURCE_ATTRIBUTES"]
                 ps["env"] = env
-                project_settings_path.write_text(json.dumps(ps, indent=2) + "\n")
-                console.print(f"  Removed OTEL_RESOURCE_ATTRIBUTES from {project_settings_path}")
+                proj_settings.write_text(json.dumps(ps, indent=2) + "\n")
+                console.print(f"  Removed OTEL_RESOURCE_ATTRIBUTES from {proj_settings}")
         except Exception as exc:
-            console.print(f"  [yellow]Could not clean {project_settings_path}: {exc}[/yellow]")
+            console.print(f"  [yellow]Could not clean {proj_settings}: {exc}[/yellow]")
 
-    # 10. Remove # ocw harness observability block from ~/.zshrc (Gap #7)
+    # 11. Remove # ocw harness observability block from ~/.zshrc
     zshrc = Path.home() / ".zshrc"
     if zshrc.exists():
         try:
             text = zshrc.read_text()
+            # Match the marker line plus all following export lines (any count)
             cleaned = re.sub(
-                r"\n# ocw harness observability\nexport [^\n]+\nexport [^\n]+\nexport [^\n]+\nexport [^\n]+\nexport [^\n]+\n",
-                "\n",
+                r"# ocw harness observability\n(?:export [^\n]+\n)*",
+                "",
                 text,
             )
             if cleaned != text:
