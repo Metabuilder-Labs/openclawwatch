@@ -510,6 +510,29 @@ def test_onboard_claude_code_preserves_custom_otlp_headers(runner, tmp_path):
     assert data["env"]["OTEL_EXPORTER_OTLP_HEADERS"] == custom_header
 
 
+def test_onboard_does_not_prompt_for_daemon(runner, tmp_path):
+    """Regression: ocw onboard should auto-install the daemon without
+    prompting. The prompt was removed in v0.1.6 but reappeared.
+    See v0.1.7 fix."""
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
+         patch("ocw.cli.cmd_onboard._install_daemon", return_value="Daemon installed") as mock_daemon:
+        result = runner.invoke(cli, ["onboard", "--budget", "5.0"], input="")
+    assert result.exit_code == 0
+    # Daemon should be auto-installed (not prompted)
+    mock_daemon.assert_called_once()
+    # Should NOT contain the interactive prompt text
+    assert "Install background daemon" not in result.output
+
+
+def test_onboard_no_daemon_skips_install(runner, tmp_path):
+    """--no-daemon flag should skip daemon installation entirely."""
+    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=None), \
+         patch("ocw.cli.cmd_onboard._install_daemon") as mock_daemon:
+        result = runner.invoke(cli, ["onboard", "--budget", "5.0", "--no-daemon"])
+    assert result.exit_code == 0
+    mock_daemon.assert_not_called()
+
+
 def test_budget_show_displays_defaults(runner, db, config):
     """ocw budget with no flags shows current budgets."""
     result = _invoke(runner, db, config, ["budget"])

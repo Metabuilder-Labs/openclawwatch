@@ -103,3 +103,14 @@ def test_calculate_cost_openai_model():
     cost = calculate_cost("openai", "gpt-4o", 500_000, 100_000)
     # (500k/1M * 2.50) + (100k/1M * 10.00) = 1.25 + 1.00 = 2.25
     assert cost == 2.25
+
+
+def test_pricing_file_exists_at_expected_path():
+    """Regression: PRICING_FILE must resolve to ocw/pricing/models.toml,
+    not a path outside the package. A broken path causes $0.00 costs
+    when installed via pip (non-editable). See v0.1.7 fix."""
+    from ocw.core.pricing import PRICING_FILE
+    assert PRICING_FILE.exists(), f"Pricing file not found at {PRICING_FILE}"
+    assert "ocw" in PRICING_FILE.parts, (
+        f"PRICING_FILE should be inside the ocw package, got {PRICING_FILE}"
+    )

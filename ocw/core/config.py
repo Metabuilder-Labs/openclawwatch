@@ -311,7 +311,7 @@ def _serialise(config: OcwConfig) -> dict:
                 ]
             elif hasattr(val, "__dataclass_fields__"):
                 result[f.name] = _dc_to_dict(val)
-            elif val is not None:
+            elif val is not None and not isinstance(val, Path):
                 result[f.name] = val
         return result
 
