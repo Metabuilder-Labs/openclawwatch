@@ -160,35 +160,40 @@ No signup, no cloud — runs entirely on your machine.
 
 ## Claude Code integration
 
-Monitor every Claude Code session — costs, tool calls, API requests, errors — with a single command:
-
-```bash
-ocw onboard --claude-code          # configures telemetry, sets daily budget
-ocw serve &                        # start the server
-# restart Claude Code, then:
-ocw status --agent claude-code-*   # see cost, tokens, active alerts
-```
-
-`ocw onboard --claude-code` automatically:
-- Writes OTLP exporter config to `~/.claude/settings.json` (global) and `.claude/settings.json` (project)
-- Sets up Docker harness-compatible env vars in `~/.zshrc`
-- Creates a per-agent budget in `.ocw/config.toml`
-- Optionally installs a background daemon (launchd/systemd) to keep `ocw serve` alive
-
-Claude Code emits OTLP log events which `ocw serve` converts into spans — every API request, tool result, tool decision, and error becomes a first-class span with cost tracking, alert evaluation, and drift detection.
-
-Works in both interactive and autonomous (headless) mode. Drift detection is especially useful for autonomous runs where Claude Code executes recurring tasks — token anomalies and tool sequence changes are caught automatically.
-
-### MCP server
-
-`ocw` ships an MCP server that gives Claude Code direct access to your observability data — no `ocw serve` required. Install it once globally:
+Monitor every Claude Code session — costs, tool calls, API requests, errors — with two commands:
 
 ```bash
 pip install "openclawwatch[mcp]"
-claude mcp add --scope user ocw -- ocw mcp
+ocw onboard --claude-code
+# Restart Claude Code, then:
+ocw status --agent claude-code-<project>
 ```
 
-Restart Claude Code. You now have 13 tools available in every session:
+`ocw onboard --claude-code` does everything in one shot:
+- Creates a shared config at `~/.config/ocw/config.toml` (one config for all your projects)
+- Writes OTLP exporter vars to `~/.claude/settings.json` so Claude Code sends telemetry automatically
+- Tags this project's sessions by writing `OTEL_RESOURCE_ATTRIBUTES=service.name=claude-code-<project>` to `.claude/settings.json`
+- Registers the MCP server globally (`claude mcp add --scope user ocw -- ocw mcp`)
+- Installs a background daemon (launchd on macOS, systemd on Linux) to keep `ocw serve` alive across restarts
+- Adds Docker harness-compatible OTLP env vars to `~/.zshrc`
+
+**Claude Code must be restarted** after running `ocw onboard --claude-code` for the new `settings.json` env vars to take effect.
+
+**Adding a second (or third) project** — run once per project directory, no reinstall needed:
+
+```bash
+cd /path/to/other-project
+ocw onboard --claude-code   # adds agent to shared config, tags this project
+# Restart Claude Code
+```
+
+Each project gets its own agent ID (`claude-code-<repo-name>`), all sharing one running server and one ingest secret. Running `ocw onboard --claude-code` in a new project never rotates the secret or breaks other projects.
+
+Claude Code emits OTLP log events which `ocw serve` converts into spans — every API request, tool result, tool decision, and error becomes a first-class span with cost tracking, alert evaluation, and drift detection. Works in both interactive and autonomous (headless) mode.
+
+### MCP server
+
+The MCP server is included in the `[mcp]` extra and registered automatically by `ocw onboard --claude-code`. It gives Claude Code direct access to your observability data inside the session itself. After restarting Claude Code you have 13 tools available in every session:
 
 | Tool | What it does |
 |---|---|
@@ -213,6 +218,25 @@ The MCP server opens the DuckDB file read-only — no lock conflicts with `ocw s
 > "Set up OCW for this project"
 
 Claude calls `setup_project`, which writes `.claude/settings.json` with `OTEL_RESOURCE_ATTRIBUTES=service.name=<project>` so spans from that project are tagged with the right agent ID.
+
+### Uninstalling
+
+```bash
+# Remove all OCW data, config, daemon, MCP registration, and env vars from every onboarded project:
+ocw uninstall --yes
+
+# Then remove the package itself (ocw uninstall intentionally skips this):
+pip uninstall openclawwatch -y
+```
+
+`ocw uninstall` cleans up everything set by `ocw onboard --claude-code`:
+- Stops and removes the background daemon (launchd/systemd)
+- Deregisters the MCP server from Claude Code
+- Deletes `~/.ocw/` (telemetry database)
+- Deletes `~/.config/ocw/` (global config and projects index)
+- Removes OTLP env vars from `~/.claude/settings.json`
+- Removes `OTEL_RESOURCE_ATTRIBUTES` from `.claude/settings.json` in every onboarded project
+- Removes the harness env block from `~/.zshrc`
 
 ---
 
