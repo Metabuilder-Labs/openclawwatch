@@ -649,7 +649,7 @@ function TracesListView() {
     setAgentStatus(map);
   }, [since, statusF]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
 
   return html`
     <div class="page-title">Traces</div>
@@ -833,7 +833,7 @@ function CostView() {
     setTotal(d.total_cost_usd || 0);
   }, [since, groupBy]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
 
   const totalIn = rows.reduce((s, r) => s + (r.input_tokens || 0), 0);
   const totalOut = rows.reduce((s, r) => s + (r.output_tokens || 0), 0);
@@ -905,7 +905,7 @@ function AlertsView() {
     setAlerts(d.alerts || []);
   }, [severity]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
 
   return html`
     <div class="page-title">Alerts</div>
@@ -947,6 +947,8 @@ function DriftView() {
 
   useEffect(() => {
     api('/drift').then(d => setData(d));
+    const t = setInterval(() => api('/drift').then(d => setData(d)), 10000);
+    return () => clearInterval(t);
   }, []);
 
   if (!data) return html`<div class="empty">Loading...</div>`;
@@ -1068,7 +1070,7 @@ function BudgetView() {
     setAlerts([...daily, ...session].sort((a, b) => b.fired_at.localeCompare(a.fired_at)));
   }).catch(e => setError(e.message));
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
 
   const handleSave = async (scope, dailyStr, sessionStr) => {
     // Empty field means "no limit" — send 0 so the server runs validate_budget_value(0) → None.

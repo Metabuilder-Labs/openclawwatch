@@ -442,8 +442,10 @@ def test_onboard_claude_code_resyncs_secret_on_rerun(runner, tmp_path):
         }
     }) + "\n")
 
-    fake_config_path = tmp_path / ".ocw" / "config.toml"
+    # Global config path — --claude-code always uses ~/.config/ocw/config.toml
+    fake_config_path = fake_home / ".config" / "ocw" / "config.toml"
     fake_config_path.parent.mkdir(parents=True)
+    fake_config_path.touch()  # must exist so the "existing and not force" branch runs
 
     from ocw.core.config import AgentConfig, OcwConfig, SecurityConfig
     fake_config = OcwConfig(
@@ -452,8 +454,7 @@ def test_onboard_claude_code_resyncs_secret_on_rerun(runner, tmp_path):
         security=SecurityConfig(ingest_secret=new_secret),
     )
 
-    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=str(fake_config_path)), \
-         patch("ocw.core.config.load_config", return_value=fake_config), \
+    with patch("ocw.core.config.load_config", return_value=fake_config), \
          patch("ocw.core.config.write_config"), \
          patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
          patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):
@@ -487,8 +488,10 @@ def test_onboard_claude_code_preserves_custom_otlp_headers(runner, tmp_path):
         }
     }) + "\n")
 
-    fake_config_path = tmp_path / ".ocw" / "config.toml"
+    # Global config path — --claude-code always uses ~/.config/ocw/config.toml
+    fake_config_path = fake_home / ".config" / "ocw" / "config.toml"
     fake_config_path.parent.mkdir(parents=True)
+    fake_config_path.touch()  # must exist so the "existing and not force" branch runs
 
     from ocw.core.config import AgentConfig, OcwConfig, SecurityConfig
     fake_config = OcwConfig(
@@ -497,8 +500,7 @@ def test_onboard_claude_code_preserves_custom_otlp_headers(runner, tmp_path):
         security=SecurityConfig(ingest_secret="newsecret" * 4),
     )
 
-    with patch("ocw.cli.cmd_onboard.find_config_file", return_value=str(fake_config_path)), \
-         patch("ocw.core.config.load_config", return_value=fake_config), \
+    with patch("ocw.core.config.load_config", return_value=fake_config), \
          patch("ocw.core.config.write_config"), \
          patch("ocw.cli.cmd_onboard.Path.home", return_value=fake_home), \
          patch("ocw.cli.cmd_onboard.click.confirm", return_value=False):

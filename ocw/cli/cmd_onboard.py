@@ -29,7 +29,7 @@ def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
                 install_daemon: bool, no_daemon: bool, force: bool) -> None:
     """Interactive setup wizard for ocw."""
     if claude_code:
-        _onboard_claude_code(ctx, budget, install_daemon, no_daemon, force)
+        _onboard_claude_code(ctx, budget, no_daemon, force)
         return
     existing = find_config_file()
     if existing and not force:
@@ -43,8 +43,8 @@ def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
 
     if budget is None:
         budget = click.prompt(
-            "Daily budget in USD per agent (0 = no limit, default 5)",
-            type=float, default=5.0, show_default=False,
+            "Daily budget in USD per agent (0 = no limit, default 0)",
+            type=float, default=0.0, show_default=False,
         )
 
     ingest_secret = secrets.token_hex(32)
@@ -91,7 +91,7 @@ retention_days = 90
 
     daemon_msg = None
     if want_daemon:
-        daemon_msg = _install_daemon()
+        daemon_msg = _install_daemon(str(config_path.resolve()))
 
     # Output
     console.print()
@@ -144,7 +144,6 @@ retention_days = 90
 def _onboard_claude_code(
     ctx: click.Context,
     budget: float | None,
-    install_daemon: bool,
     no_daemon: bool,
     force: bool,
 ) -> None:
@@ -153,23 +152,28 @@ def _onboard_claude_code(
         AgentConfig, BudgetConfig, OcwConfig, SecurityConfig, load_config, write_config,
     )
 
+    # --claude-code always uses the global config so that all projects share one
+    # ingest secret and one running daemon. Per-project configs cause the secret in
+    # ~/.claude/settings.json to rotate on every project onboard, breaking auth for
+    # every other project.
+    global_config_path = Path.home() / ".config" / "ocw" / "config.toml"
+
     project_name = _derive_project_name()
     agent_id = f"claude-code-{project_name}"
-    existing = find_config_file()
 
     if budget is None:
         budget = click.prompt(
-            "Daily budget in USD (0 = no limit, default 5)",
-            type=float, default=5.0, show_default=False,
+            "Daily budget in USD (0 = no limit, default 0)",
+            type=float, default=0.0, show_default=False,
         )
 
-    if existing and not force:
-        config = load_config(str(existing))
+    if global_config_path.exists() and not force:
+        config = load_config(str(global_config_path))
         if agent_id not in config.agents:
             config.agents[agent_id] = AgentConfig()
         if budget and budget > 0:
             config.agents[agent_id].budget.daily_usd = budget
-        config_path = Path(existing)
+        config_path = global_config_path
         write_config(config, config_path)
         console.print(f"  ocw config updated: {config_path}")
     else:
@@ -181,7 +185,8 @@ def _onboard_claude_code(
             agents=agents,
             security=SecurityConfig(ingest_secret=ingest_secret),
         )
-        config_path = Path(".ocw/config.toml")
+        config_path = global_config_path
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         write_config(config, config_path)
         console.print(f"  ocw config written to: {config_path}")
 
@@ -204,15 +209,16 @@ def _onboard_claude_code(
         except (json_mod.JSONDecodeError, OSError):
             global_settings = {}
 
-    # Write global OTLP config — endpoint keys only on first run, secret always synced
+    # Write global OTLP config — always overwrite endpoint vars so reinstall stays in sync.
+    # Custom headers (non-OCW) are preserved; only OCW-generated "Authorization=Bearer"
+    # headers are replaced when the secret rotates.
     port = config.api.port
     secret = config.security.ingest_secret
     global_env: dict = global_settings.get("env", {})
-    if "OTEL_EXPORTER_OTLP_ENDPOINT" not in global_env:
-        global_env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
-        global_env["OTEL_LOGS_EXPORTER"] = "otlp"
-        global_env["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/json"
-        global_env["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"http://127.0.0.1:{port}"
+    global_env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
+    global_env["OTEL_LOGS_EXPORTER"] = "otlp"
+    global_env["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/json"
+    global_env["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"http://127.0.0.1:{port}"
     existing_header = global_env.get("OTEL_EXPORTER_OTLP_HEADERS", "")
     if secret and (not existing_header or "Authorization=Bearer" in existing_header):
         global_env["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Bearer {secret}"
@@ -236,6 +242,17 @@ def _onboard_claude_code(
     project_settings["env"] = project_env
     project_settings_path.write_text(json_mod.dumps(project_settings, indent=2) + "\n")
 
+    # --- Track onboarded project paths for clean uninstall ---
+    projects_index = config_path.parent / "projects.json"
+    try:
+        known: list[str] = json_mod.loads(projects_index.read_text()) if projects_index.exists() else []
+    except (json_mod.JSONDecodeError, OSError):
+        known = []
+    cwd_str = str(Path.cwd())
+    if cwd_str not in known:
+        known.append(cwd_str)
+        projects_index.write_text(json_mod.dumps(known, indent=2) + "\n")
+
     # --- Shell env (~/.zshrc) ---
     # Writes host.docker.internal endpoint so harness sessions (Docker) pick up
     # the vars automatically via compose.yml passthrough — no manual setup needed.
@@ -244,21 +261,31 @@ def _onboard_claude_code(
     zshrc.touch(exist_ok=True)
     marker = "# ocw harness observability"
     zshrc_text = zshrc.read_text()
+    new_block = (
+        f"\n{marker}\n"
+        f"export CLAUDE_CODE_ENABLE_TELEMETRY=1\n"
+        f"export OTEL_LOGS_EXPORTER=otlp\n"
+        f"export OTEL_EXPORTER_OTLP_PROTOCOL=http/json\n"
+        f"export OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:{port}\n"
+        f'export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"\n'
+    )
     if marker not in zshrc_text:
         with zshrc.open("a") as f:
-            f.write(f"""
-{marker}
-export CLAUDE_CODE_ENABLE_TELEMETRY=1
-export OTEL_LOGS_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:{port}
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
-""")
+            f.write(new_block)
+    else:
+        # Marker already present — replace the entire block to keep the secret in sync.
+        import re as _re
+        updated = _re.sub(
+            r"# ocw harness observability\n(?:export [^\n]+\n)*",
+            new_block.lstrip("\n"),
+            zshrc_text,
+        )
+        zshrc.write_text(updated)
 
     want_daemon = not no_daemon
     if want_daemon:
         console.print("  Daemon:              auto-installing (use --no-daemon to skip)")
-        _install_daemon()
+        _install_daemon(str(config_path.resolve()))
 
     console.print()
     console.print("[bold green]Claude Code observability configured.[/bold green]")
@@ -303,14 +330,14 @@ def _derive_project_name() -> str:
     return Path.cwd().name.lower()
 
 
-def _install_daemon() -> str | None:
+def _install_daemon(config_path: str) -> str | None:
     """Install background daemon. Returns success message or None."""
     system = platform.system()
     try:
         if system == "Darwin":
-            return _install_launchd()
+            return _install_launchd(config_path)
         elif system == "Linux":
-            return _install_systemd()
+            return _install_systemd(config_path)
         else:
             console.print(f"[yellow]Background daemon not supported on {system}. "
                           "Run `ocw serve` manually.[/yellow]")
@@ -321,7 +348,7 @@ def _install_daemon() -> str | None:
         return None
 
 
-def _install_launchd() -> str | None:
+def _install_launchd(config_path: str) -> str | None:
     ocw_path = shutil.which("ocw") or sys.executable.replace("/python", "/ocw").replace("/python3", "/ocw")
     plist_path = Path.home() / "Library/LaunchAgents/com.openclawwatch.serve.plist"
     plist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -336,6 +363,8 @@ def _install_launchd() -> str | None:
     <key>ProgramArguments</key>
     <array>
         <string>{ocw_path}</string>
+        <string>--config</string>
+        <string>{config_path}</string>
         <string>serve</string>
     </array>
     <key>RunAtLoad</key>
@@ -349,6 +378,12 @@ def _install_launchd() -> str | None:
 </dict>
 </plist>"""
     plist_path.write_text(plist_content)
+    # Unload any existing registration before loading the updated plist.
+    # Ignore errors — the service may not be registered yet on first install.
+    subprocess.run(
+        ["launchctl", "unload", str(plist_path)],
+        capture_output=True, text=True,
+    )
     result = subprocess.run(
         ["launchctl", "load", str(plist_path)],
         capture_output=True, text=True,
@@ -364,7 +399,7 @@ def _install_launchd() -> str | None:
     return f"Daemon installed at {plist_path}"
 
 
-def _install_systemd() -> str | None:
+def _install_systemd(config_path: str) -> str | None:
     ocw_path = shutil.which("ocw") or sys.executable.replace("/python", "/ocw").replace("/python3", "/ocw")
     service_path = Path.home() / ".config/systemd/user/openclawwatch.service"
     service_path.parent.mkdir(parents=True, exist_ok=True)
@@ -374,7 +409,7 @@ Description=OpenClawWatch observability server
 After=network.target
 
 [Service]
-ExecStart={ocw_path} serve
+ExecStart={ocw_path} --config {config_path} serve
 Restart=on-failure
 
 [Install]
