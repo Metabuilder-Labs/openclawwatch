@@ -40,7 +40,10 @@ def _http_get(path: str, params: dict | None = None) -> dict:
         filtered = {k: str(v) for k, v in params.items() if v is not None}
         if filtered:
             url += "?" + urllib.parse.urlencode(filtered)
-    with urllib.request.urlopen(url, timeout=5) as resp:
+    req = urllib.request.Request(url)
+    if _config and _config.api.auth.enabled:
+        req.add_header("Authorization", f"Bearer {_config.api.auth.api_key}")
+    with urllib.request.urlopen(req, timeout=5) as resp:
         return json.loads(resp.read())
 
 
@@ -52,111 +55,126 @@ class _HttpDB:
         return None
 
     def get_cost_summary(self, filters):
-        from types import SimpleNamespace
-        params = {}
-        if filters.agent_id:
-            params["agent_id"] = filters.agent_id
-        if filters.since:
-            params["since"] = filters.since.isoformat()
-        if filters.group_by:
-            params["group_by"] = filters.group_by
-        data = _http_get("/api/v1/cost", params)
-        return [
-            SimpleNamespace(
-                group=r.get("group"),
-                agent_id=r.get("agent_id"),
-                model=r.get("model"),
-                input_tokens=r.get("input_tokens", 0),
-                output_tokens=r.get("output_tokens", 0),
-                cost_usd=r.get("cost_usd", 0.0),
-            )
-            for r in data.get("rows", [])
-        ]
+        try:
+            from types import SimpleNamespace
+            params = {}
+            if filters.agent_id:
+                params["agent_id"] = filters.agent_id
+            if filters.since:
+                params["since"] = filters.since.isoformat()
+            if filters.group_by:
+                params["group_by"] = filters.group_by
+            data = _http_get("/api/v1/cost", params)
+            return [
+                SimpleNamespace(
+                    group=r.get("group"),
+                    agent_id=r.get("agent_id"),
+                    model=r.get("model"),
+                    input_tokens=r.get("input_tokens", 0),
+                    output_tokens=r.get("output_tokens", 0),
+                    cost_usd=r.get("cost_usd", 0.0),
+                )
+                for r in data.get("rows", [])
+            ]
+        except Exception:
+            return []
 
     def get_alerts(self, filters):
-        from datetime import datetime
-        from types import SimpleNamespace
-        params = {}
-        if filters.agent_id:
-            params["agent_id"] = filters.agent_id
-        if filters.severity:
-            params["severity"] = filters.severity.value
-        if filters.unread:
-            params["unread"] = "true"
-        data = _http_get("/api/v1/alerts", params)
-        results = []
-        for a in data.get("alerts", []):
-            results.append(SimpleNamespace(
-                alert_id=a["alert_id"],
-                fired_at=datetime.fromisoformat(a["fired_at"]),
-                type=SimpleNamespace(value=a["type"]),
-                severity=SimpleNamespace(value=a["severity"]),
-                title=a["title"],
-                agent_id=a["agent_id"],
-                acknowledged=a["acknowledged"],
-                suppressed=a["suppressed"],
-            ))
-        return results
+        try:
+            from datetime import datetime
+            from types import SimpleNamespace
+            params = {}
+            if filters.agent_id:
+                params["agent_id"] = filters.agent_id
+            if filters.severity:
+                params["severity"] = filters.severity.value
+            if filters.unread:
+                params["unread"] = "true"
+            data = _http_get("/api/v1/alerts", params)
+            results = []
+            for a in data.get("alerts", []):
+                results.append(SimpleNamespace(
+                    alert_id=a["alert_id"],
+                    fired_at=datetime.fromisoformat(a["fired_at"]),
+                    type=SimpleNamespace(value=a["type"]),
+                    severity=SimpleNamespace(value=a["severity"]),
+                    title=a["title"],
+                    agent_id=a["agent_id"],
+                    acknowledged=a["acknowledged"],
+                    suppressed=a["suppressed"],
+                ))
+            return results
+        except Exception:
+            return []
 
     def get_traces(self, filters):
-        from datetime import datetime
-        from types import SimpleNamespace
-        params = {}
-        if filters.agent_id:
-            params["agent_id"] = filters.agent_id
-        if filters.since:
-            params["since"] = filters.since.isoformat()
-        if filters.limit:
-            params["limit"] = filters.limit
-        data = _http_get("/api/v1/traces", params)
-        results = []
-        for t in data.get("traces", []):
-            results.append(SimpleNamespace(
-                trace_id=t["trace_id"],
-                agent_id=t.get("agent_id"),
-                name=t.get("name"),
-                start_time=datetime.fromisoformat(t["start_time"]) if t.get("start_time") else None,
-                duration_ms=t.get("duration_ms"),
-                cost_usd=t.get("cost_usd"),
-                status_code=t.get("status_code"),
-                span_count=t.get("span_count", 0),
-            ))
-        return results
+        try:
+            from datetime import datetime
+            from types import SimpleNamespace
+            params = {}
+            if filters.agent_id:
+                params["agent_id"] = filters.agent_id
+            if filters.since:
+                params["since"] = filters.since.isoformat()
+            if filters.limit:
+                params["limit"] = filters.limit
+            data = _http_get("/api/v1/traces", params)
+            results = []
+            for t in data.get("traces", []):
+                results.append(SimpleNamespace(
+                    trace_id=t["trace_id"],
+                    agent_id=t.get("agent_id"),
+                    name=t.get("name"),
+                    start_time=datetime.fromisoformat(t["start_time"]) if t.get("start_time") else None,
+                    duration_ms=t.get("duration_ms"),
+                    cost_usd=t.get("cost_usd"),
+                    status_code=t.get("status_code"),
+                    span_count=t.get("span_count", 0),
+                ))
+            return results
+        except Exception:
+            return []
 
     def get_trace_spans(self, trace_id: str):
-        from datetime import datetime
-        from types import SimpleNamespace
-        data = _http_get(f"/api/v1/traces/{trace_id}")
-        results = []
-        for s in data.get("spans", []):
-            results.append(SimpleNamespace(
-                span_id=s["span_id"],
-                parent_span_id=s.get("parent_span_id"),
-                name=s.get("name"),
-                kind=SimpleNamespace(value=s.get("kind", "")),
-                status_code=SimpleNamespace(value=s.get("status_code", "")),
-                start_time=datetime.fromisoformat(s["start_time"]) if s.get("start_time") else None,
-                end_time=datetime.fromisoformat(s["end_time"]) if s.get("end_time") else None,
-                duration_ms=s.get("duration_ms"),
-                provider=s.get("provider"),
-                model=s.get("model"),
-                tool_name=s.get("tool_name"),
-                input_tokens=s.get("input_tokens"),
-                output_tokens=s.get("output_tokens"),
-                cost_usd=s.get("cost_usd"),
-            ))
-        return results
+        try:
+            from datetime import datetime
+            from types import SimpleNamespace
+            data = _http_get(f"/api/v1/traces/{trace_id}")
+            results = []
+            for s in data.get("spans", []):
+                results.append(SimpleNamespace(
+                    span_id=s["span_id"],
+                    parent_span_id=s.get("parent_span_id"),
+                    name=s.get("name"),
+                    kind=SimpleNamespace(value=s.get("kind", "")),
+                    status_code=SimpleNamespace(value=s.get("status_code", "")),
+                    start_time=datetime.fromisoformat(s["start_time"]) if s.get("start_time") else None,
+                    end_time=datetime.fromisoformat(s["end_time"]) if s.get("end_time") else None,
+                    duration_ms=s.get("duration_ms"),
+                    provider=s.get("provider"),
+                    model=s.get("model"),
+                    tool_name=s.get("tool_name"),
+                    input_tokens=s.get("input_tokens"),
+                    output_tokens=s.get("output_tokens"),
+                    cost_usd=s.get("cost_usd"),
+                ))
+            return results
+        except Exception:
+            return []
 
     def get_tool_calls(self, agent_id, since, tool_name):
-        params = {}
-        if agent_id:
-            params["agent_id"] = agent_id
-        if since:
-            params["since"] = since.isoformat()
-        if tool_name:
-            params["tool_name"] = tool_name
-        data = _http_get("/api/v1/tools", params)
-        return data.get("tools", [])
+        try:
+            params = {}
+            if agent_id:
+                params["agent_id"] = agent_id
+            if since:
+                params["since"] = since.isoformat()
+            if tool_name:
+                params["tool_name"] = tool_name
+            data = _http_get("/api/v1/tools", params)
+            return data.get("tools", [])
+        except Exception:
+            return []
 
     def get_baseline(self, agent_id: str):
         from datetime import datetime
@@ -194,7 +212,7 @@ class _HttpDB:
                 input_tokens=a.get("input_tokens", 0),
                 output_tokens=a.get("output_tokens", 0),
                 tool_call_count=a.get("tool_call_count", 0),
-                duration_seconds=None,
+                duration_seconds=a.get("duration_seconds"),
             ))
         return results
 
@@ -254,7 +272,9 @@ def _tool_get_status(conn, config, agent_id: str | None = None) -> dict:
             agents = data.get("agents", [])
             matching = [a for a in agents if a.get("agent_id") == agent_id]
             if matching:
-                return matching[0]
+                raw = dict(matching[0])
+                raw["cost_today_usd"] = raw.pop("cost_today", raw.get("cost_today_usd", 0.0))
+                return raw
             return {
                 "agent_id": agent_id,
                 "session_id": None,
@@ -266,7 +286,12 @@ def _tool_get_status(conn, config, agent_id: str | None = None) -> dict:
                 "cost_today_usd": 0.0,
                 "active_alerts": 0,
             }
-        return data
+        agents = []
+        for a in data.get("agents", []):
+            a = dict(a)
+            a["cost_today_usd"] = a.pop("cost_today", a.get("cost_today_usd", 0.0))
+            agents.append(a)
+        return {"agents": agents}
 
     from ocw.utils.time_parse import utcnow
 
@@ -371,6 +396,7 @@ def _tool_get_budget_headroom(conn, config, agent_id: str) -> dict:
         if agents:
             a = agents[0]
             today_cost = float(a.get("cost_today", 0.0))
+            session_cost = float(a.get("total_cost_usd", 0.0))
         return {
             "agent_id": agent_id,
             "daily_limit_usd": daily_limit,
@@ -414,14 +440,14 @@ def _tool_list_agents(conn) -> dict:
     if conn is None:
         if _serve_url is None:
             return _no_config()
-        data = _http_get("/api/v1/status")
+        data = _http_get("/api/v1/agents")
         return {
             "agents": [
                 {
                     "agent_id": a["agent_id"],
-                    "first_seen": None,
-                    "last_seen": None,
-                    "lifetime_cost_usd": float(a.get("cost_today", 0.0)),
+                    "first_seen": a.get("first_seen"),
+                    "last_seen": a.get("last_seen"),
+                    "lifetime_cost_usd": float(a.get("lifetime_cost_usd", 0.0)),
                 }
                 for a in data.get("agents", [])
             ]
@@ -457,8 +483,8 @@ def _tool_list_active_sessions(conn) -> dict:
             {
                 "session_id": a.get("session_id"),
                 "agent_id": a["agent_id"],
-                "started_at": None,
-                "total_cost_usd": float(a.get("cost_today", 0.0)),
+                "started_at": a.get("started_at"),
+                "total_cost_usd": float(a.get("total_cost_usd", 0.0)),
                 "input_tokens": a.get("input_tokens", 0),
                 "output_tokens": a.get("output_tokens", 0),
                 "tool_call_count": a.get("tool_call_count", 0),
@@ -724,11 +750,11 @@ def _tool_setup_project(
         try:
             gs = json.loads(global_settings.read_text())
             if "OTEL_EXPORTER_OTLP_ENDPOINT" not in gs.get("env", {}):
-                warning = "Global OTLP endpoint not configured. Run 'ocw onboard --claude-code' to finish setup."
+                warning = "Global OTLP endpoint not configured. Run 'ocw onboard --claude-code' to finish setup, then run 'claude mcp add ocw --scope user -- ocw mcp' to register the MCP server."
         except Exception:
             warning = "Could not read ~/.claude/settings.json."
     else:
-        warning = "~/.claude/settings.json not found. Run 'ocw onboard --claude-code' to configure the global OTLP endpoint."
+        warning = "~/.claude/settings.json not found. Run 'ocw onboard --claude-code' to configure the global OTLP endpoint and register the MCP server."
 
     result = {
         "agent_id": agent_id,
@@ -767,7 +793,8 @@ def _tool_open_dashboard(config) -> dict:
 
     # Spawn ocw serve detached from this process.
     # start_new_session is Unix-only; use DETACHED_PROCESS on Windows instead.
-    ocw_bin = sys.argv[0] if sys.argv[0].endswith("ocw") else "ocw"
+    import shutil as _shutil
+    ocw_bin = _shutil.which("ocw") or sys.argv[0]
     import sys as _sys
     popen_kwargs: dict = {
         "stdout": subprocess.DEVNULL,
@@ -779,7 +806,7 @@ def _tool_open_dashboard(config) -> dict:
         popen_kwargs["start_new_session"] = True
     try:
         subprocess.Popen([ocw_bin, "serve"], **popen_kwargs)
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         return {"error": f"Could not find '{ocw_bin}' on PATH. Run 'ocw serve' manually."}
 
     # Wait up to 5 seconds for the port to open
@@ -812,7 +839,10 @@ def get_status(agent_id: str | None = None) -> dict:
     agent status, what's running, token usage, cost today, or active alerts. Omit agent_id
     to get a summary of every known agent.
     """
-    return _tool_get_status(_ro_conn, _config, agent_id)
+    try:
+        return _tool_get_status(_ro_conn, _config, agent_id)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -822,7 +852,10 @@ def get_budget_headroom(agent_id: str) -> dict:
     Use this when the user asks how much budget is left, whether they're close to a limit,
     or wants to check spend against their configured daily_usd or session_usd cap.
     """
-    return _tool_get_budget_headroom(_ro_conn, _config, agent_id)
+    try:
+        return _tool_get_budget_headroom(_ro_conn, _config, agent_id)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -834,7 +867,10 @@ def list_agents() -> dict:
     """
     if _ro_conn is None and _serve_url is None:
         return _no_config()
-    return _tool_list_agents(_ro_conn)
+    try:
+        return _tool_list_agents(_ro_conn)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -847,7 +883,10 @@ def list_active_sessions() -> dict:
     """
     if _ro_conn is None and _serve_url is None:
         return _no_config()
-    return _tool_list_active_sessions(_ro_conn)
+    try:
+        return _tool_list_active_sessions(_ro_conn)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -864,7 +903,10 @@ def get_cost_summary(
     """
     if _ro_db is None:
         return _no_config()
-    return _tool_get_cost_summary(_ro_db, agent_id, since, group_by)
+    try:
+        return _tool_get_cost_summary(_ro_db, agent_id, since, group_by)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -881,7 +923,10 @@ def list_alerts(
     """
     if _ro_db is None:
         return _no_config()
-    return _tool_list_alerts(_ro_db, agent_id, severity, unread)
+    try:
+        return _tool_list_alerts(_ro_db, agent_id, severity, unread)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -897,7 +942,10 @@ def list_traces(
     """
     if _ro_db is None:
         return _no_config()
-    return _tool_list_traces(_ro_db, agent_id, since, limit)
+    try:
+        return _tool_list_traces(_ro_db, agent_id, since, limit)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -909,7 +957,10 @@ def get_trace(trace_id: str) -> dict:
     """
     if _ro_db is None:
         return _no_config()
-    return _tool_get_trace(_ro_db, trace_id)
+    try:
+        return _tool_get_trace(_ro_db, trace_id)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -924,7 +975,10 @@ def get_tool_stats(
     """
     if _ro_db is None:
         return _no_config()
-    return _tool_get_tool_stats(_ro_db, agent_id, since)
+    try:
+        return _tool_get_tool_stats(_ro_db, agent_id, since)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -937,7 +991,10 @@ def get_drift_report(agent_id: str | None = None) -> dict:
     """
     if _ro_db is None:
         return _no_config()
-    return _tool_get_drift_report(_ro_db, agent_id)
+    try:
+        return _tool_get_drift_report(_ro_db, agent_id)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -949,11 +1006,23 @@ def acknowledge_alert(alert_id: str) -> dict:
     """
     if _config is None:
         return _no_config()
-    from pathlib import Path
-    import duckdb as _duckdb
-    db_path = str(Path(_config.storage.path).expanduser())
-    with _duckdb.connect(db_path) as write_conn:
-        return _tool_acknowledge_alert(write_conn, alert_id)
+    try:
+        if _serve_url is not None:
+            import json as _json
+            import urllib.request as _urlreq
+            url = f"{_serve_url}/api/v1/alerts/{alert_id}/acknowledge"
+            req = _urlreq.Request(url, method="PATCH", data=b"")
+            if _config.api.auth.enabled:
+                req.add_header("Authorization", f"Bearer {_config.api.auth.api_key}")
+            with _urlreq.urlopen(req, timeout=5) as resp:
+                return _json.loads(resp.read())
+        from pathlib import Path
+        import duckdb as _duckdb
+        db_path = str(Path(_config.storage.path).expanduser())
+        with _duckdb.connect(db_path) as write_conn:
+            return _tool_acknowledge_alert(write_conn, alert_id)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -964,14 +1033,17 @@ def setup_project(agent_id: str | None = None, project_path: str | None = None) 
     when the user wants to start monitoring a new project, or asks how to set up OCW for
     this repo. Infers agent_id from the git remote if not provided.
     """
-    from ocw.core.config import find_config_file
-    cp = find_config_file()
-    return _tool_setup_project(
-        config=_config,
-        config_path=str(cp) if cp else None,
-        agent_id=agent_id,
-        project_path=project_path,
-    )
+    try:
+        from ocw.core.config import find_config_file
+        cp = find_config_file()
+        return _tool_setup_project(
+            config=_config,
+            config_path=str(cp) if cp else None,
+            agent_id=agent_id,
+            project_path=project_path,
+        )
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -982,4 +1054,7 @@ def open_dashboard() -> dict:
     whenever the user asks to open the dashboard, view the UI, or browse observability data
     visually. Returns the URL to open. Safe to call repeatedly — detects if already running.
     """
-    return _tool_open_dashboard(_config)
+    try:
+        return _tool_open_dashboard(_config)
+    except Exception as e:
+        return {"error": str(e)}

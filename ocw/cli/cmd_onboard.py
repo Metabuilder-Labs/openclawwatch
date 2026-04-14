@@ -190,6 +190,13 @@ def _onboard_claude_code(
         write_config(config, config_path)
         console.print(f"  ocw config written to: {config_path}")
 
+    # --- Register MCP server with Claude Code ---
+    if shutil.which("claude"):
+        subprocess.run(
+            ["claude", "mcp", "add", "ocw", "--scope", "user", "--", "ocw", "mcp"],
+            capture_output=True,
+        )
+
     # --- Global settings (~/.claude/settings.json) ---
     claude_dir = Path.home() / ".claude"
     claude_dir.mkdir(parents=True, exist_ok=True)
@@ -243,7 +250,8 @@ def _onboard_claude_code(
     marker = "# ocw harness observability"
     zshrc_text = zshrc.read_text()
     if marker not in zshrc_text:
-        zshrc.open("a").write(f"""
+        with zshrc.open("a") as f:
+            f.write(f"""
 {marker}
 export CLAUDE_CODE_ENABLE_TELEMETRY=1
 export OTEL_LOGS_EXPORTER=otlp

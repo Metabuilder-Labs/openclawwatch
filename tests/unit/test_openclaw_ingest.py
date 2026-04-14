@@ -313,3 +313,43 @@ class TestOpenClawAttributeMapping:
         assert usage_spans[0].input_tokens == 1000
         assert usage_spans[0].output_tokens == 300
         assert usage_spans[0].provider == "anthropic"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/agents
+# ---------------------------------------------------------------------------
+
+class TestAgentsEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_list_agents_returns_registered_agents(self, client, db):
+        from ocw.core.models import AgentRecord
+        from ocw.utils.time_parse import utcnow
+
+        t = utcnow()
+        db.upsert_agent(AgentRecord(agent_id="agent-a", first_seen=t, last_seen=t))
+        db.upsert_agent(AgentRecord(agent_id="agent-b", first_seen=t, last_seen=t))
+
+        from tests.factories import make_llm_span
+        db.insert_span(make_llm_span(agent_id="agent-a", cost_usd=1.50))
+        db.insert_span(make_llm_span(agent_id="agent-a", cost_usd=0.50))
+
+        resp = await client.get("/api/v1/agents")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+
+        by_id = {a["agent_id"]: a for a in data["agents"]}
+        assert "agent-a" in by_id
+        assert "agent-b" in by_id
+
+        a = by_id["agent-a"]
+        assert abs(a["lifetime_cost_usd"] - 2.0) < 0.01
+        assert a["first_seen"] is not None
+        assert a["last_seen"] is not None
+
+    @pytest.mark.asyncio
+    async def test_list_agents_empty(self, client):
+        resp = await client.get("/api/v1/agents")
+        assert resp.status_code == 200
+        assert resp.json() == {"agents": []}
