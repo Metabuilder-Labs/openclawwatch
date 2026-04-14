@@ -20,7 +20,7 @@ from ocw.utils.formatting import console
 @click.option("--budget", type=float, default=None,
               help="Daily budget in USD per agent (0 = no limit)")
 @click.option("--install-daemon", "install_daemon", is_flag=True, default=False,
-              help="Install background daemon without prompting")
+              help="(no-op: daemon is installed by default; use --no-daemon to skip)")
 @click.option("--no-daemon", is_flag=True, default=False,
               help="Skip background daemon installation")
 @click.option("--force", is_flag=True, help="Overwrite existing config")
@@ -249,6 +249,7 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
 
     want_daemon = not no_daemon
     if want_daemon:
+        console.print("  Daemon:              auto-installing (use --no-daemon to skip)")
         _install_daemon()
 
     console.print()
