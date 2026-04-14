@@ -15,6 +15,10 @@ export interface OcwClientOptions {
   batchSize?: number;
   /** Flush interval in milliseconds (default: 5000) */
   flushIntervalMs?: number;
+  /** Service name reported in OTLP resource attributes (default: "ocw-ts-sdk") */
+  serviceName?: string;
+  /** Maximum retry attempts on network errors or 5xx responses (default: 3) */
+  maxRetries?: number;
 }
 
 const SPAN_KIND_TO_OTLP: Record<string, number> = {
@@ -87,6 +91,8 @@ export class OcwClient {
   private readonly ingestSecret: string;
   private readonly batchSize: number;
   private readonly flushIntervalMs: number;
+  private readonly serviceName: string;
+  private readonly maxRetries: number;
   private buffer: Span[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -98,6 +104,8 @@ export class OcwClient {
     this.ingestSecret = options.ingestSecret;
     this.batchSize = options.batchSize ?? 50;
     this.flushIntervalMs = options.flushIntervalMs ?? 5000;
+    this.serviceName = options.serviceName ?? "ocw-ts-sdk";
+    this.maxRetries = options.maxRetries ?? 3;
   }
 
   /**
@@ -158,7 +166,7 @@ export class OcwClient {
             attributes: [
               {
                 key: "service.name",
-                value: { stringValue: "ocw-ts-sdk" },
+                value: { stringValue: this.serviceName },
               },
             ],
           },
@@ -174,25 +182,52 @@ export class OcwClient {
 
   /**
    * POST a span batch to the ingest endpoint.
+   * Retries up to maxRetries times on network errors or 5xx responses using
+   * exponential backoff (base 2s, matching Python HttpTransport behaviour).
+   * 4xx errors are not retried — they indicate auth or validation failures.
    */
   private async post(batch: SpanBatch): Promise<IngestResult> {
     const url = `${this.baseUrl}/api/v1/spans`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.ingestSecret}`,
-      },
-      body: JSON.stringify(batch),
-    });
+    const body = JSON.stringify(batch);
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.ingestSecret}`,
+    };
 
-    if (!response.ok) {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      if (attempt > 0) {
+        // Exponential backoff: 2s, 4s, 8s
+        await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, attempt - 1)));
+      }
+
+      let response: Response;
+      try {
+        response = await fetch(url, { method: "POST", headers, body });
+      } catch (err) {
+        // Network-level error — retry
+        lastError = err instanceof Error ? err : new Error(String(err));
+        continue;
+      }
+
+      if (response.ok) {
+        return (await response.json()) as IngestResult;
+      }
+
       const text = await response.text().catch(() => "");
-      throw new Error(
+      const error = new Error(
         `OCW ingest failed: ${response.status} ${response.statusText} — ${text}`
       );
+
+      // 4xx: not retriable (auth/validation failure)
+      if (response.status >= 400 && response.status < 500) {
+        throw error;
+      }
+
+      // 5xx: retriable
+      lastError = error;
     }
 
-    return (await response.json()) as IngestResult;
+    throw lastError ?? new Error("OCW ingest failed after retries");
   }
 }
