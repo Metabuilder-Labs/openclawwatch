@@ -142,6 +142,36 @@ class TestSerialise:
         assert restored.security.ingest_secret == "secret123"
         assert restored.capture.prompts is True
 
+    def test_serialise_excludes_config_path(self):
+        """Regression: config_path is a Path object which is not TOML
+        serializable. _serialise() must exclude it. See v0.1.7 fix."""
+        config = OcwConfig(
+            version="1",
+            security=SecurityConfig(ingest_secret="s"),
+            config_path=Path("/some/path/ocw.toml"),
+        )
+        serialised = _serialise(config)
+        assert "config_path" not in serialised
+
+    def test_write_config_after_load_roundtrip(self, tmp_path):
+        """Regression: load_config sets config_path (a Path). Writing that
+        config back must not crash with 'PosixPath is not TOML serializable'.
+        See v0.1.7 fix."""
+        from ocw.core.config import write_config
+
+        toml_content = b'version = "1"\n\n[security]\ningest_secret = "abc"\n'
+        config_file = tmp_path / "ocw.toml"
+        config_file.write_bytes(toml_content)
+
+        config = load_config(str(config_file))
+        assert config.config_path is not None
+
+        out_path = tmp_path / "out.toml"
+        write_config(config, out_path)
+        assert out_path.exists()
+        reloaded = load_config(str(out_path))
+        assert reloaded.security.ingest_secret == "abc"
+
 
 class TestResolveEffectiveBudget:
     def test_agent_with_both_fields_uses_agent_values(self):

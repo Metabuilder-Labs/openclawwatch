@@ -10,7 +10,7 @@ else:
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-PRICING_FILE = Path(__file__).parent.parent.parent / "pricing" / "models.toml"
+PRICING_FILE = Path(__file__).parent.parent / "pricing" / "models.toml"
 
 # Default rate used when a model is not in the pricing table.
 # 0.50 per MTok input, 2.00 per MTok output — conservative mid-range estimate.

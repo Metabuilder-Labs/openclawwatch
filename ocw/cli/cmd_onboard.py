@@ -20,7 +20,7 @@ from ocw.utils.formatting import console
 @click.option("--budget", type=float, default=None,
               help="Daily budget in USD per agent (0 = no limit)")
 @click.option("--install-daemon", "install_daemon", is_flag=True, default=False,
-              help="Install background daemon without prompting")
+              help="(no-op: daemon is installed by default; use --no-daemon to skip)")
 @click.option("--no-daemon", is_flag=True, default=False,
               help="Skip background daemon installation")
 @click.option("--force", is_flag=True, help="Overwrite existing config")
@@ -49,12 +49,7 @@ def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
 
     ingest_secret = secrets.token_hex(32)
 
-    want_daemon = install_daemon or (
-        not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive across reboots)?",
-            default=False,
-        )
-    )
+    want_daemon = not no_daemon
 
     config_path = Path(".ocw/config.toml")
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,13 +255,9 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:{port}
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
 """)
 
-    want_daemon = install_daemon or (
-        not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive across reboots)?",
-            default=False,
-        )
-    )
+    want_daemon = not no_daemon
     if want_daemon:
+        console.print("  Daemon:              auto-installing (use --no-daemon to skip)")
         _install_daemon()
 
     console.print()
