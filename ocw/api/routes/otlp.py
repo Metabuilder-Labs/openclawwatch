@@ -2,7 +2,8 @@
 
 POST /v1/traces — forwards to the same OTLP JSON ingest logic as /api/v1/spans.
 POST /v1/metrics — stub (200 OK, silently discards).
-POST /v1/logs — stub (200 OK, silently discards).
+POST /v1/logs — primary ingest path for Claude Code telemetry; converts OTLP log
+    events to NormalizedSpan objects via parse_log_records() in logs.py.
 
 These exist so that OTel exporters configured with a bare endpoint
 (e.g. ``http://127.0.0.1:7391``) work out of the box — OpenClaw's

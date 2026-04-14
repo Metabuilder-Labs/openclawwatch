@@ -49,3 +49,4 @@ ocw.toml
 
 # Superpowers skill output (internal planning artifacts, not for OSS)
 docs/superpowers/
+.gstack/

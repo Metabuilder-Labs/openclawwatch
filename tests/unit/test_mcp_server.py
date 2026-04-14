@@ -480,6 +480,10 @@ def test_get_status_http_mode():
         with patch("ocw.mcp.server._http_get", return_value=fake_response):
             result = _tool_get_status(None, config, "alpha")
         assert result["status"] == "active"
+        # cost_today from API must be renamed to cost_today_usd in the single-agent path
+        assert "cost_today_usd" in result
+        assert abs(result["cost_today_usd"] - 1.23) < 0.01
+        assert "cost_today" not in result
     finally:
         _set_serve_url(None)
 
@@ -573,9 +577,35 @@ def test_list_active_sessions_http_mode():
 
 # --- test_acknowledge_alert_http_mode ---
 
-def test_acknowledge_alert_http_mode():
+def test_acknowledge_alert_inner_conn_none_returns_error():
+    """_tool_acknowledge_alert with conn=None returns a descriptive error (not a crash)."""
     result = _tool_acknowledge_alert(None, "some-id")
     assert "error" in result
+
+
+def test_acknowledge_alert_http_mode_proxies_patch():
+    """acknowledge_alert MCP wrapper proxies to PATCH endpoint when _serve_url is set."""
+    from unittest.mock import MagicMock
+    config = _make_config("alpha")
+    _set_serve_url("http://127.0.0.1:7391")
+    _srv._config = config
+    try:
+        mock_resp = MagicMock()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = b'{"acknowledged": true, "alert_id": "alert-1"}'
+
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            result = _srv.acknowledge_alert("alert-1")
+
+        call_args = mock_urlopen.call_args
+        req = call_args[0][0]
+        assert "alerts/alert-1/acknowledge" in req.full_url
+        assert req.get_method() == "PATCH"
+        assert result["acknowledged"] is True
+    finally:
+        _set_serve_url(None)
+        _srv._config = None
 
 
 # --- test_get_budget_headroom_http_mode ---

@@ -73,6 +73,8 @@ async def get_status(
             "error_count": session.error_count if session else 0,
             "active_alerts": len(active_alerts),
             "duration_seconds": session.duration_seconds if session else None,
+            "started_at": session.started_at.isoformat() if session and session.started_at else None,
+            "total_cost_usd": float(session.total_cost_usd) if session and session.total_cost_usd is not None else 0.0,
         }
         agents_data.append(agent_data)
 

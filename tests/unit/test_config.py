@@ -13,6 +13,14 @@ from ocw.core.config import (
 class TestLoadConfig:
     def test_returns_defaults_when_no_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
+        # SEARCH_PATHS is a module-level constant built at import time; patch it
+        # directly so the real ~/.config/ocw/config.toml is never found.
+        import ocw.core.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "SEARCH_PATHS", [
+            Path("ocw.toml"),
+            Path(".ocw/config.toml"),
+            tmp_path / ".config" / "ocw" / "config.toml",
+        ])
         config = load_config()
         assert config.version == "1"
         assert config.storage.path == "~/.ocw/telemetry.duckdb"

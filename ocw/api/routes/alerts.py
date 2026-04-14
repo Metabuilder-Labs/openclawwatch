@@ -10,6 +10,7 @@ from ocw.utils.time_parse import parse_since
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
+
 @router.get("/alerts")
 async def get_alerts(
     request: Request,
@@ -55,3 +56,22 @@ async def get_alerts(
         ],
         "count": len(alerts),
     }
+
+
+@router.patch("/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(alert_id: str, request: Request) -> dict:
+    db = request.app.state.db
+    conn = getattr(db, "conn", None)
+    if conn is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Write operations unavailable in read-only mode")
+    result = conn.execute(
+        "SELECT alert_id FROM alerts WHERE alert_id = $1", [alert_id]
+    ).fetchone()
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+    conn.execute(
+        "UPDATE alerts SET acknowledged = true WHERE alert_id = $1", [alert_id]
+    )
+    return {"acknowledged": True, "alert_id": alert_id}
