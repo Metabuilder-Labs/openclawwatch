@@ -19,17 +19,15 @@ from ocw.utils.formatting import console
               help="Configure Claude Code telemetry to flow into ocw")
 @click.option("--budget", type=float, default=None,
               help="Daily budget in USD per agent (0 = no limit)")
-@click.option("--install-daemon", "install_daemon", is_flag=True, default=False,
-              help="Install background daemon without prompting")
 @click.option("--no-daemon", is_flag=True, default=False,
               help="Skip background daemon installation")
 @click.option("--force", is_flag=True, help="Overwrite existing config")
 @click.pass_context
 def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
-                install_daemon: bool, no_daemon: bool, force: bool) -> None:
+                no_daemon: bool, force: bool) -> None:
     """Interactive setup wizard for ocw."""
     if claude_code:
-        _onboard_claude_code(ctx, budget, install_daemon, no_daemon, force)
+        _onboard_claude_code(ctx, budget, no_daemon, force)
         return
     existing = find_config_file()
     if existing and not force:
@@ -49,11 +47,9 @@ def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
 
     ingest_secret = secrets.token_hex(32)
 
-    want_daemon = install_daemon or (
-        not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive across reboots)?",
-            default=False,
-        )
+    want_daemon = not no_daemon and click.confirm(
+        "Install background daemon (keeps ocw serve alive across reboots)?",
+        default=False,
     )
 
     config_path = Path(".ocw/config.toml")
@@ -149,7 +145,6 @@ retention_days = 90
 def _onboard_claude_code(
     ctx: click.Context,
     budget: float | None,
-    install_daemon: bool,
     no_daemon: bool,
     force: bool,
 ) -> None:
@@ -260,11 +255,9 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:{port}
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer {secret}"
 """)
 
-    want_daemon = install_daemon or (
-        not no_daemon and click.confirm(
-            "Install background daemon (keeps ocw serve alive across reboots)?",
-            default=False,
-        )
+    want_daemon = not no_daemon and click.confirm(
+        "Install background daemon (keeps ocw serve alive across reboots)?",
+        default=False,
     )
     if want_daemon:
         _install_daemon()
