@@ -46,6 +46,7 @@ openclawwatch/
 │   ├── core/               Domain logic — NO CLI or HTTP imports allowed here
 │   ├── otel/               OTel SDK wiring + semantic conventions
 │   ├── api/                FastAPI local REST API
+│   ├── mcp/                MCP stdio server (Claude Code integration)
 │   ├── sdk/                Python instrumentation SDK
 │   └── utils/              Formatting, time parsing, ID generation
 ├── examples/               Runnable example agents (see examples/README.md)
@@ -105,6 +106,7 @@ Post-ingest hooks run synchronously after each span is written to DB:
 - **`ocw/api/middleware.py`**: `IngestAuthMiddleware` — protects `POST /api/v1/spans` with Bearer token. Returns `JSONResponse(401)` directly (not `HTTPException`, which doesn't propagate from `BaseHTTPMiddleware.dispatch`).
 - **`ocw/api/deps.py`**: `require_api_key` — FastAPI dependency for optional API key auth on GET endpoints. Only enforced when `api.auth.enabled = true` in config.
 - **`ocw/api/routes/`**: One file per resource — `spans.py` (OTLP JSON ingest), `traces.py`, `cost.py`, `tools.py`, `alerts.py`, `drift.py`, `metrics.py` (Prometheus text format from DB queries).
+- **`ocw/mcp/server.py`**: FastMCP stdio server exposing observability data to Claude Code. Uses either a read-only DuckDB connection or HTTP proxy to `ocw serve`. Initialized via `init()` from `cmd_mcp.py`.
 - **`ocw/cli/main.py`**: Root Click group with global options (`--config`, `--json`, `--no-color`, `--db`, `--agent`, `-v`). Registers all subcommands.
 
 ### CLI Commands
@@ -121,6 +123,9 @@ Post-ingest hooks run synchronously after each span is written to DB:
 | `ocw export` | `cmd_export.py` | Export spans as json (NDJSON), csv, otlp, or openevals format |
 | `ocw serve` | `cmd_serve.py` | Start FastAPI + uvicorn server with retention cleanup cron |
 | `ocw stop` | `cmd_stop.py` | Stop background daemon or ocw serve process |
+| `ocw budget` | `cmd_budget.py` | Get/set daily and session budget limits per agent or globally |
+| `ocw drift` | `cmd_drift.py` | Show drift baselines and Z-scores for recent sessions |
+| `ocw mcp` | `cmd_mcp.py` | Start the stdio MCP server for Claude Code integration |
 | `ocw uninstall` | `cmd_uninstall.py` | Remove all OCW data, config, and daemon |
 | `ocw doctor` | `cmd_doctor.py` | Health checks (config, DB, secrets, webhooks). Exit 0/1/2 |
 
