@@ -201,7 +201,9 @@ See the **[full examples guide](docs/examples.md)** for the complete list with e
 
 ## Architecture
 
-See **[docs/architecture.md](docs/architecture.md)** for the full architecture document.
+DuckDB storage, OTel-native ingest pipeline, post-ingest hooks for cost, alerts, and schema validation. Python SDK, TypeScript SDK, and HTTP all converge at one pipeline.
+
+See the **[full architecture document](docs/architecture.md)** for data flow, package structure, and design principles.
 
 ---
 
