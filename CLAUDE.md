@@ -161,6 +161,7 @@ When a span has a `conversation_id` matching an existing session, it's attribute
 11. **OTel TracerProvider is global and set-once** — `trace.set_tracer_provider()` only works once per process. In tests, set the provider once at module level (not per-test in a fixture) and clear spans between tests. Use a custom `_CollectingExporter(SpanExporter)` since `InMemorySpanExporter` is not available in the installed OTel version. See `tests/agents/test_mock_scenarios.py` for the SDK test pattern and `tests/integration/test_full_pipeline.py` for the pipeline pattern.
 12. **New SDK integrations must call `ensure_initialised()`** — every `patch_*()` convenience function must call `from ocw.sdk.bootstrap import ensure_initialised; ensure_initialised()` before installing hooks. This lazily bootstraps the TracerProvider + IngestPipeline on first use.
 13. **PyPI package name is `openclawwatch`, not `ocw`** — `pip install openclawwatch` is the correct install command. The CLI command is `ocw` and the Python package directory is `ocw/`, but the published package name on PyPI is `openclawwatch`. Never write `pip install ocw` in docs, examples, or comments.
+14. **Version bump on release** — both `pyproject.toml` (`version = "X.Y.Z"`) and `sdk-ts/package.json` (`"version": "X.Y.Z"`) must be bumped to the new version before creating a GitHub release. The publish workflows (`publish-pypi.yml`, `publish-npm.yml`) trigger on `release published` events and will fail with 403 if the version already exists on PyPI/npm.
 
 ## Config
 
