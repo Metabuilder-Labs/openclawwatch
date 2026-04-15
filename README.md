@@ -299,36 +299,6 @@ See **[docs/architecture.md](docs/architecture.md)** for the full architecture d
 
 ---
 
-## Contributing
-
-```bash
-git clone https://github.com/Metabuilder-Labs/openclawwatch
-cd openclawwatch
-pip install -e ".[dev,mcp]"   # editable install with dev tools + MCP support
-
-pytest tests/unit/ tests/synthetic/ tests/agents/ tests/integration/
-ruff check ocw/
-mypy ocw/
-```
-
-To test the Claude Code integration locally after cloning:
-
-```bash
-pip install -e ".[dev,mcp]"
-ocw onboard --claude-code
-# Restart Claude Code
-```
-
-The editable install means changes to `ocw/` take effect immediately — no reinstall needed. Use `pip install -e ".[dev]"` if you don't need the MCP server.
-
-292 tests. 2.5 seconds. All green.
-
-See [AGENTS.md](AGENTS.md) for codebase conventions and how AI coding agents should work in this repo.
-
-PRs welcome. If you're adding a framework integration, open an issue first so we can align on the approach.
-
----
-
 ## Roadmap
 
 - [x] `ocw serve` background daemon (launchd / systemd)
