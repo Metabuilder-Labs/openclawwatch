@@ -4,10 +4,59 @@ from pathlib import Path
 import pytest
 
 from ocw.core.config import (
-    load_config, _parse, _serialise, OcwConfig, AgentConfig, BudgetConfig,
-    DefaultsConfig, SensitiveAction, SecurityConfig, CaptureConfig, StorageConfig,
-    resolve_effective_budget, validate_budget_value,
+    find_config_file, load_config, _parse, _serialise, OcwConfig, AgentConfig,
+    BudgetConfig, DefaultsConfig, SensitiveAction, SecurityConfig, CaptureConfig,
+    StorageConfig, resolve_effective_budget, validate_budget_value,
 )
+
+
+class TestFindConfigFile:
+    def test_global_fallback_found(self, tmp_path, monkeypatch):
+        """find_config_file() discovers ~/.config/ocw/config.toml when no local config exists."""
+        monkeypatch.chdir(tmp_path)
+        global_config = tmp_path / ".config" / "ocw" / "config.toml"
+        global_config.parent.mkdir(parents=True)
+        global_config.write_bytes(b'version = "1"\n\n[security]\ningest_secret = "global-secret"\n')
+        import ocw.core.config as cfg_mod
+        from ocw.core.config import find_config_file
+        monkeypatch.setattr(cfg_mod, "SEARCH_PATHS", [
+            Path("ocw.toml"),
+            Path(".ocw/config.toml"),
+            global_config,
+        ])
+        result = find_config_file()
+        assert result is not None
+        assert result == global_config
+
+    def test_local_config_takes_priority_over_global(self, tmp_path, monkeypatch):
+        """Local .ocw/config.toml is preferred over the global config."""
+        monkeypatch.chdir(tmp_path)
+        local_config = tmp_path / ".ocw" / "config.toml"
+        local_config.parent.mkdir(parents=True)
+        local_config.write_bytes(b'version = "1"\n\n[security]\ningest_secret = "local"\n')
+        global_config = tmp_path / ".config" / "ocw" / "config.toml"
+        global_config.parent.mkdir(parents=True)
+        global_config.write_bytes(b'version = "1"\n\n[security]\ningest_secret = "global"\n')
+        import ocw.core.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "SEARCH_PATHS", [
+            Path("ocw.toml"),
+            Path(".ocw/config.toml"),
+            global_config,
+        ])
+        result = find_config_file()
+        assert result is not None
+        # .ocw/config.toml is a relative path so resolve to compare
+        assert result == Path(".ocw/config.toml")
+
+    def test_returns_none_when_no_config_anywhere(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        import ocw.core.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "SEARCH_PATHS", [
+            Path("ocw.toml"),
+            Path(".ocw/config.toml"),
+            tmp_path / ".config" / "ocw" / "config.toml",
+        ])
+        assert find_config_file() is None
 
 
 class TestLoadConfig:
