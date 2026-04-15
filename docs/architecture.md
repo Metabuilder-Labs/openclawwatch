@@ -217,11 +217,31 @@ Two ingest endpoints accept the same OTLP JSON format:
 - `/api/v1/spans` — the primary endpoint, auth required
 - `/v1/traces` — standard OTLP path alias for OpenClaw and other OTLP clients
 
-Stub endpoints at `/v1/metrics` and `/v1/logs` return 200 OK to prevent noisy warnings from OTLP clients that send all three signal types.
+A stub endpoint at `/v1/metrics` returns 200 OK to prevent noisy warnings from OTLP clients that send all three signal types. `/v1/logs` is **not** a stub — it is the primary ingest path for Claude Code telemetry (see [Claude Code telemetry pipeline](#claude-code-telemetry-pipeline) below).
 
 ### Partial failure handling
 
 `POST /api/v1/spans` returns 200 with `ingested`/`rejected` counts even if some spans were rejected. 400 is only returned if the entire body is malformed.
+
+### Route inventory
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/spans` | POST | OTLP JSON span ingest (auth required) |
+| `/api/v1/traces` | GET | Trace listing |
+| `/api/v1/cost` | GET | Cost breakdown |
+| `/api/v1/tools` | GET | Tool call stats |
+| `/api/v1/alerts` | GET | Alert history |
+| `/api/v1/alerts/{id}/acknowledge` | PATCH | Acknowledge an alert |
+| `/api/v1/drift` | GET | Drift baselines and Z-scores |
+| `/api/v1/agents` | GET | Agent registry with first_seen, last_seen, lifetime cost |
+| `/api/v1/budget` | GET | Budget defaults and per-agent configured/effective values |
+| `/api/v1/budget` | POST | Update budget for defaults or a specific agent |
+| `/api/v1/status` | GET | Agent status overview |
+| `/v1/traces` | POST | OTLP path alias for external clients |
+| `/v1/logs` | POST | Claude Code OTLP log ingest (log-to-span conversion) |
+| `/v1/metrics` | POST | Stub (returns 200 OK) |
+| `/metrics` | GET | Prometheus text format |
 
 ### Prometheus metrics
 
@@ -233,7 +253,7 @@ Stub endpoints at `/v1/metrics` and `/v1/logs` return 200 OK to prevent noisy wa
 
 A single-file SPA (`ocw/ui/index.html`) served by `ocw serve` at `http://127.0.0.1:7391/`. No build step, no node_modules — vanilla JS with Alpine.js from CDN.
 
-Five views: Status, Traces (with span waterfall visualization), Cost, Alerts, Drift. Hash-based routing (`/#/status`, `/#/traces`, etc.). The UI consumes the same REST API endpoints as external clients.
+Six views: Status, Traces (with span waterfall visualization), Cost, Alerts, Budget, Drift. Hash-based routing (`/#/status`, `/#/traces`, etc.). The UI consumes the same REST API endpoints as external clients. All views auto-poll (Status at 5s, all others at 10s).
 
 The span waterfall is the primary visualization — horizontal bars positioned on a timeline, color-coded by span kind (agent=green, LLM=blue, tool=orange), with parent-child nesting from `parent_span_id`.
 
@@ -323,11 +343,12 @@ If `ocw serve` is not running, `cmd_mcp.py` can auto-start it as a detached subp
 The `--claude-code` flag configures the full telemetry pipeline in one command:
 
 1. **Derives agent ID** from the git remote origin name (fallback: folder name), prefixed with `claude-code-`
-2. **Writes OCW config** (`.ocw/config.toml`) with agent entry and optional daily budget
+2. **Writes OCW config** to `~/.config/ocw/config.toml` (global, shared across all projects) with agent entry and optional daily budget
 3. **Updates global Claude settings** (`~/.claude/settings.json`) with OTLP exporter env vars: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, endpoint, protocol. On re-runs, always resyncs the `OTEL_EXPORTER_OTLP_HEADERS` auth header to fix 401s without manual setup.
 4. **Writes project settings** (`./.claude/settings.json`) with `OTEL_RESOURCE_ATTRIBUTES=service.name={agent_id}` so spans are tagged to the right agent
 5. **Updates shell env** (`~/.zshrc`) with Docker-compatible endpoint (`host.docker.internal:{port}`) for harness sessions that can't reach `127.0.0.1`
-6. **Optionally installs daemon** (launchd on macOS, systemd on Linux)
+6. **Registers MCP server** globally via `claude mcp add --scope user ocw -- ocw mcp`
+7. **Installs daemon** by default (launchd on macOS, systemd on Linux) with `--config` baked into the unit file; skip with `--no-daemon`
 
 ### Log-to-span conversion
 
