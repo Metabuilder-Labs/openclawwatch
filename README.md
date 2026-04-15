@@ -31,12 +31,6 @@ Most observability tools out there were built for LLM developers building chat p
 
 `ocw` is.
 
-**Works with Claude Code out of the box** — one command to start monitoring your Claude Code sessions, costs, and tool usage:
-
-```bash
-ocw onboard --claude-code
-```
-
 ---
 
 ## What it does
@@ -113,6 +107,8 @@ def run(task: str) -> str:
     ...
 ```
 
+**[Claude Code support out of the box](docs/claude-code-integration.md)** — one command to start monitoring your Claude Code sessions, costs, and tool usage.
+
 **Try it with the included toy agent** (requires `ANTHROPIC_API_KEY`):
 
 ```bash
@@ -151,161 +147,23 @@ https://github.com/user-attachments/assets/ff09caec-3487-4542-8628-d62b7d92591f
 
 No signup, no cloud — runs entirely on your machine.
 
-<!-- Screenshots: add after taking them manually
-![Status page](docs/images/web-ui-status.png)
-![Span waterfall](docs/images/web-ui-waterfall.png)
--->
-
----
-
-## Claude Code integration
-
-Monitor every Claude Code session — costs, tool calls, API requests, errors — with two commands:
-
-```bash
-pip install "openclawwatch[mcp]"
-ocw onboard --claude-code
-# Restart Claude Code, then:
-ocw status --agent claude-code-<project>
-```
-
-`ocw onboard --claude-code` does everything in one shot:
-- Creates a shared config at `~/.config/ocw/config.toml` (one config for all your projects)
-- Writes OTLP exporter vars to `~/.claude/settings.json` so Claude Code sends telemetry automatically
-- Tags this project's sessions by writing `OTEL_RESOURCE_ATTRIBUTES=service.name=claude-code-<project>` to `.claude/settings.json`
-- Registers the MCP server globally (`claude mcp add --scope user ocw -- ocw mcp`)
-- Installs a background daemon (launchd on macOS, systemd on Linux) to keep `ocw serve` alive across restarts
-- Adds Docker harness-compatible OTLP env vars to `~/.zshrc`
-
-**Claude Code must be restarted** after running `ocw onboard --claude-code` for the new `settings.json` env vars to take effect.
-
-**Adding a second (or third) project** — run once per project directory, no reinstall needed:
-
-```bash
-cd /path/to/other-project
-ocw onboard --claude-code   # adds agent to shared config, tags this project
-# Restart Claude Code
-```
-
-Each project gets its own agent ID (`claude-code-<repo-name>`), all sharing one running server and one ingest secret. Running `ocw onboard --claude-code` in a new project never rotates the secret or breaks other projects.
-
-Claude Code emits OTLP log events which `ocw serve` converts into spans — every API request, tool result, tool decision, and error becomes a first-class span with cost tracking, alert evaluation, and drift detection. Works in both interactive and autonomous (headless) mode.
-
-### MCP server
-
-The MCP server is included in the `[mcp]` extra and registered automatically by `ocw onboard --claude-code`. It gives Claude Code direct access to your observability data inside the session itself. After restarting Claude Code you have 13 tools available in every session:
-
-| Tool | What it does |
-|---|---|
-| `get_status` | Current agent state — tokens, cost, active alerts |
-| `get_budget_headroom` | Budget limit vs spend for an agent |
-| `list_active_sessions` | All running sessions across agents |
-| `list_agents` | All known agents with lifetime cost |
-| `get_cost_summary` | Cost breakdown by day / agent / model |
-| `list_alerts` | Alert history with severity and unread filtering |
-| `list_traces` | Recent traces with cost and duration |
-| `get_trace` | Full span waterfall for a single trace |
-| `get_tool_stats` | Tool call counts and average duration |
-| `get_drift_report` | Behavioral drift baseline vs latest session |
-| `acknowledge_alert` | Mark an alert as acknowledged |
-| `setup_project` | Configure a project to send telemetry to OCW |
-| `open_dashboard` | Open the web UI — starts `ocw serve` on demand if needed |
-
-The MCP server opens the DuckDB file read-only — no lock conflicts with `ocw serve` if both are running. The single write operation (`acknowledge_alert`) opens a short-lived read-write connection only for its UPDATE.
-
-**Per-project telemetry tagging** — after installing the MCP server globally, ask Claude Code to set up each project:
-
-> "Set up OCW for this project"
-
-Claude calls `setup_project`, which writes `.claude/settings.json` with `OTEL_RESOURCE_ATTRIBUTES=service.name=<project>` so spans from that project are tagged with the right agent ID.
-
-### Uninstalling
-
-```bash
-# Remove all OCW data, config, daemon, MCP registration, and env vars from every onboarded project:
-ocw uninstall --yes
-
-# Then remove the package itself (ocw uninstall intentionally skips this):
-pip uninstall openclawwatch -y
-```
-
-`ocw uninstall` cleans up everything set by `ocw onboard --claude-code`:
-- Stops and removes the background daemon (launchd/systemd)
-- Deregisters the MCP server from Claude Code
-- Deletes `~/.ocw/` (telemetry database)
-- Deletes `~/.config/ocw/` (global config and projects index)
-- Removes OTLP env vars from `~/.claude/settings.json`
-- Removes `OTEL_RESOURCE_ATTRIBUTES` from `.claude/settings.json` in every onboarded project
-- Removes the harness env block from `~/.zshrc`
-
 ---
 
 ## Framework support
 
-`ocw` is OTel-native. Any framework that emits OpenTelemetry spans works automatically — point its OTLP exporter at `ocw serve` and you're done. For everything else, one-line patches exist.
+`ocw` is OTel-native. Any framework that emits OpenTelemetry spans works automatically. For everything else, one-line patches exist.
 
-**OpenClaw** — zero-code, first-class support. OpenClaw's built-in `diagnostics-otel` plugin exports traces directly to `ocw serve`. Just set `"endpoint": "http://127.0.0.1:7391"` in your `openclaw.json` — no SDK code, no patches. See [docs/openclaw.md](docs/openclaw.md) for the full setup guide.
+See the **[full framework support guide](docs/framework-support.md)** for provider patches, framework patches, zero-code OTLP integrations, and the TypeScript SDK.
 
-**Python — provider patches** (intercept at the API level, framework-agnostic):
-
-```python
-from ocw.sdk.integrations.anthropic import patch_anthropic   # Anthropic — Messages.create + streaming
-from ocw.sdk.integrations.openai    import patch_openai      # OpenAI — chat completions
-from ocw.sdk.integrations.gemini    import patch_gemini      # Google Gemini — GenerativeModel
-from ocw.sdk.integrations.bedrock   import patch_bedrock     # AWS Bedrock — boto3 invoke_model/invoke_agent
-from ocw.sdk.integrations.litellm   import patch_litellm    # LiteLLM — unified interface for 100+ providers
-```
-
-`patch_litellm()` covers all providers LiteLLM routes to (OpenAI, Anthropic, Bedrock, Vertex, Cohere, Mistral, Ollama, etc.) with correct per-provider attribution. If you use LiteLLM, you don't need the individual provider patches above.
-
-OpenAI-compatible providers (Groq, Together, Fireworks, xAI, Azure OpenAI) also work via `patch_openai(base_url=...)` — no separate patches needed.
-
-**Python — framework patches** (instrument the framework's own tool and LLM abstractions):
-
-```python
-from ocw.sdk.integrations.langchain         import patch_langchain        # BaseLLM + BaseTool
-from ocw.sdk.integrations.langgraph         import patch_langgraph        # CompiledGraph
-from ocw.sdk.integrations.crewai            import patch_crewai           # Task + Agent
-from ocw.sdk.integrations.autogen           import patch_autogen          # ConversableAgent
-from ocw.sdk.integrations.llamaindex        import patch_llamaindex       # Native OTel wrapper
-from ocw.sdk.integrations.openai_agents_sdk import patch_openai_agents   # Native OTel wrapper
-from ocw.sdk.integrations.nemoclaw          import watch_nemoclaw         # NemoClaw Gateway observer
-```
-
-**Zero-code via OTLP** — point any of these frameworks' built-in OTel exporter at `ocw serve`, no integration code required:
-
-| Framework | OTel support |
+| Integration | Type |
 |---|---|
-| **Claude Code** | **Built-in** — `ocw onboard --claude-code` |
-| **OpenClaw** | **Built-in** (`diagnostics-otel` plugin) — [setup guide](docs/openclaw.md) |
-| LlamaIndex | `opentelemetry-instrumentation-llama-index` |
-| OpenAI Agents SDK | Built-in |
-| Google ADK | Built-in |
-| Strands Agent SDK (AWS) | Built-in |
-| Haystack | Built-in |
-| Pydantic AI | Built-in |
-| Semantic Kernel | Built-in |
-
-**TypeScript / Node.js** — `@openclawwatch/sdk` provides `OcwClient` and `SpanBuilder` for sending spans to `ocw serve` from any TypeScript agent:
-
-```typescript
-import { OcwClient, SpanBuilder } from "@openclawwatch/sdk";
-
-const client = new OcwClient({
-  baseUrl:      "http://127.0.0.1:7391",
-  ingestSecret: process.env.OCW_INGEST_SECRET ?? "",
-});
-
-const span = new SpanBuilder("invoke_agent")
-  .agentId("my-ts-agent")
-  .model("gpt-4o-mini")
-  .provider("openai")
-  .inputTokens(450)
-  .outputTokens(120)
-  .build();
-
-await client.send([span]);
-```
+| [Claude Code](docs/claude-code-integration.md) | Built-in OTLP |
+| [OpenClaw](docs/openclaw.md) | Built-in OTLP |
+| [NemoClaw](docs/nemoclaw-integration.md) | WebSocket observer |
+| Anthropic, OpenAI, Gemini, Bedrock, LiteLLM | [Python provider patches](docs/framework-support.md#python-provider-patches) |
+| LangChain, LangGraph, CrewAI, AutoGen, LlamaIndex | [Python framework patches](docs/framework-support.md#python-framework-patches) |
+| OpenAI Agents SDK, Google ADK, Haystack, Pydantic AI | [Zero-code OTLP](docs/framework-support.md#zero-code-via-otlp) |
+| TypeScript / Node.js | [@openclawwatch/sdk](docs/framework-support.md#typescript--nodejs) |
 
 ---
 
@@ -333,21 +191,6 @@ Alert types: `sensitive_action` · `cost_budget_daily` · `cost_budget_session` 
 
 ---
 
-## NemoClaw support
-
-Running OpenClaw inside [NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)? `ocw` connects to the OpenShell Gateway WebSocket and turns every sandbox event — blocked network requests, filesystem denials, inference reroutes — into a first-class alert.
-
-```python
-from ocw.sdk.integrations.nemoclaw import watch_nemoclaw
-
-observer = watch_nemoclaw()
-asyncio.create_task(observer.connect())  # non-blocking, runs alongside your agent
-```
-
-This is the observability layer that NemoClaw doesn't ship with.
-
----
-
 ## Export and integrate
 
 ```bash
@@ -363,40 +206,6 @@ ocw export --format csv
 ```
 
 Prometheus metrics are available at `http://127.0.0.1:7391/metrics` when `ocw serve` is running.
-
----
-
-## Architecture
-
-```mermaid
-flowchart TD
-    Agent["Your agent code"]
-
-    Agent --> PythonSDK["Python SDK\n@watch + patch_* integrations"]
-    Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
-
-    PythonSDK --> Exporter["OcwSpanExporter"]
-    TypeScriptSDK --> HTTP["POST /api/v1/spans"]
-
-    Exporter --> Ingest
-    HTTP --> Ingest
-
-    Ingest["IngestPipeline\nSanitization · Session continuity · Attribute extraction"]
-
-    Ingest --> Cost["CostEngine\npricing.toml"]
-    Ingest --> Alerts["AlertEngine\n13 types · 6 channels"]
-    Ingest --> Schema["SchemaValidator\nJSON Schema + genson infer"]
-
-    Cost --> DB["DuckDB\nlocal · embedded"]
-    Alerts --> DB
-    Schema --> DB
-
-    DB --> CLI["ocw CLI"]
-    DB --> API["REST API\n:7391/docs"]
-    DB --> Prom["Prometheus\n:7391/metrics"]
-```
-
-Spans from Python land via the in-process OTel exporter. Spans from TypeScript (or any external process) arrive via HTTP. Both paths converge at `IngestPipeline`. Everything downstream is identical.
 
 ---
 
@@ -466,22 +275,6 @@ ocw uninstall        Remove all OCW data, config, and daemon
 
 ---
 
-## Why not LangSmith / Langfuse / Datadog?
-
-Those tools were built for LLM developers — tracing API calls, comparing prompts, running evals on chat outputs. They're excellent at that. `ocw` was built for a different problem: **autonomous agents running unsupervised with real-world consequences**.
-
-| | `ocw` | LangSmith | Langfuse | Datadog LLM Obs |
-|---|---|---|---|---|
-| Real-time sensitive action alerts | ✅ | ❌ | ❌ | ❌ |
-| Behavioral drift detection | ✅ | ❌ | ❌ | ❌ |
-| Local-first, no cloud required | ✅ | ❌ | self-host only | ❌ |
-| OTel GenAI SemConv native | ✅ | partial | partial | partial |
-| NemoClaw sandbox events | ✅ | ❌ | ❌ | ❌ |
-| Works with any agent/framework | ✅ | LangChain-first | partial | ❌ |
-| Free, MIT licensed | ✅ | freemium | freemium | paid |
-
----
-
 ## Examples
 
 The [`examples/`](examples/) directory contains runnable agents for every supported integration:
@@ -497,6 +290,12 @@ python examples/alerts_and_drift/drift_demo.py       # zero-cost drift detection
 ```
 
 See [`examples/README.md`](examples/README.md) for the full list with required env vars and setup notes.
+
+---
+
+## Architecture
+
+See **[docs/architecture.md](docs/architecture.md)** for the full architecture document.
 
 ---
 

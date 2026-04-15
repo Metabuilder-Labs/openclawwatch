@@ -16,54 +16,35 @@ This document describes the architecture of OpenClawWatch (ocw) — a local-firs
 
 ## System overview
 
+```mermaid
+flowchart TD
+    Agent["Your agent code"]
+
+    Agent --> PythonSDK["Python SDK\n@watch + patch_* integrations"]
+    Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
+
+    PythonSDK --> Exporter["OcwSpanExporter"]
+    TypeScriptSDK --> HTTP["POST /api/v1/spans"]
+
+    Exporter --> Ingest
+    HTTP --> Ingest
+
+    Ingest["IngestPipeline\nSanitization · Session continuity · Attribute extraction"]
+
+    Ingest --> Cost["CostEngine\npricing.toml"]
+    Ingest --> Alerts["AlertEngine\n13 types · 6 channels"]
+    Ingest --> Schema["SchemaValidator\nJSON Schema + genson infer"]
+
+    Cost --> DB["DuckDB\nlocal · embedded"]
+    Alerts --> DB
+    Schema --> DB
+
+    DB --> CLI["ocw CLI"]
+    DB --> API["REST API\n:7391/docs"]
+    DB --> Prom["Prometheus\n:7391/metrics"]
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Agent Process                            │
-│                                                                 │
-│  @watch(agent_id="my-agent")        patch_anthropic()           │
-│  ┌──────────────────────┐           patch_openai()              │
-│  │   AgentSession       │           patch_*()                   │
-│  │   (session span)     │           (LLM call spans)            │
-│  └──────────┬───────────┘                │                      │
-│             │                            │                      │
-│             ▼                            ▼                      │
-│  ┌──────────────────────────────────────────────┐               │
-│  │         OTel TracerProvider                   │               │
-│  │  ┌──────────────────────────────────────┐    │               │
-│  │  │       OcwSpanExporter                │    │               │
-│  │  │  (ReadableSpan → NormalizedSpan)     │    │               │
-│  │  └──────────────┬─────────────────────  │    │               │
-│  └─────────────────┼──────────────────────-┘    │               │
-│                    │                                            │
-└────────────────────┼────────────────────────────────────────────┘
-                     │
-                     ▼
-          ┌─────────────────────┐       ┌──────────────────────┐
-          │   IngestPipeline    │◄──────│  POST /api/v1/spans  │
-          │                     │       │  (OTLP JSON)         │
-          │  1. Sanitize        │       │                      │
-          │  2. Resolve session │       │  TS SDK, OpenClaw,   │
-          │  3. Write to DB     │       │  any OTLP client     │
-          │  4. Post-ingest     │       └──────────────────────┘
-          │     hooks           │                  ▲
-          └────────┬────────────┘                  │
-                   │               ┌───────────────┘
-        ┌──────────┼──────────┐    │
-        ▼          ▼          ▼    │
-   CostEngine  AlertEngine  SchemaValidator
-        │          │              │
-        ▼          ▼              ▼
-   ┌────────────────────────────────────┐
-   │            DuckDB                  │
-   │  (local, embedded, single-writer) │
-   └──────┬─────────┬──────────┬───────┘
-          │         │          │
-   ┌──────┼─────────┼──────────┼──────────────┐
-   ▼      ▼         ▼          ▼              ▼
- CLI    REST API   Web UI   MCP Server   Claude Code
-(ocw)   (:7391)   (:7391/)  (stdio)    (OTLP logs →
-                                        POST /v1/logs)
-```
+
+Spans from Python land via the in-process OTel exporter. Spans from TypeScript (or any external process) arrive via HTTP. Both paths converge at `IngestPipeline`. Everything downstream is identical.
 
 ---
 
