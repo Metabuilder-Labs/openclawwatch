@@ -83,6 +83,8 @@ Or when everything is clean:
 
 **Runs entirely on your machine.** DuckDB. Local REST API. No cloud backend. No API key for `ocw` itself. Your telemetry data never leaves unless you explicitly configure it to.
 
+**Works out of the box with** **Claude Code**, **OpenClaw**, **NemoClaw** and [more](docs/framework-support.md). One command to start monitoring — no custom instrumentation required.
+
 ---
 
 ## Quickstart
