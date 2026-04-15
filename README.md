@@ -153,19 +153,9 @@ No signup, no cloud — runs entirely on your machine.
 
 ## Framework support
 
-`ocw` is OTel-native. Any framework that emits OpenTelemetry spans works automatically. For everything else, one-line patches exist.
+OTel-native — any framework that emits OpenTelemetry spans works automatically. One-line patches for everything else. Python, TypeScript, and zero-code OTLP integrations.
 
 See the **[full framework support guide](docs/framework-support.md)** for provider patches, framework patches, zero-code OTLP integrations, and the TypeScript SDK.
-
-| Integration | Type |
-|---|---|
-| [Claude Code](docs/claude-code-integration.md) | Built-in OTLP |
-| [OpenClaw](docs/openclaw.md) | Built-in OTLP |
-| [NemoClaw](docs/nemoclaw-integration.md) | WebSocket observer |
-| Anthropic, OpenAI, Gemini, Bedrock, LiteLLM | [Python provider patches](docs/framework-support.md#python-provider-patches) |
-| LangChain, LangGraph, CrewAI, AutoGen, LlamaIndex | [Python framework patches](docs/framework-support.md#python-framework-patches) |
-| OpenAI Agents SDK, Google ADK, Haystack, Pydantic AI | [Zero-code OTLP](docs/framework-support.md#zero-code-via-otlp) |
-| TypeScript / Node.js | [@openclawwatch/sdk](docs/framework-support.md#typescript--nodejs) |
 
 ---
 
@@ -203,19 +193,9 @@ See the **[full CLI reference](docs/cli-reference.md)** for all commands, flags,
 
 ## Examples
 
-The [`examples/`](examples/) directory contains runnable agents for every supported integration:
+Runnable agents for every supported integration — single provider, single framework, multi-integration, and alerts/drift demos (no API keys needed).
 
-- **Single provider** — Anthropic, OpenAI, Gemini, Bedrock, OpenAI Agents SDK
-- **Single framework** — LangChain, LangGraph, CrewAI, AutoGen, LlamaIndex
-- **Multi-integration** — provider router, CrewAI + LangChain research team, RAG with fallback
-- **Alerts and drift** — sensitive action alerts, budget breach, behavioral drift detection (no API keys needed)
-
-```bash
-python examples/single_provider/anthropic_agent.py   # tool-use agent
-python examples/alerts_and_drift/drift_demo.py       # zero-cost drift detection demo
-```
-
-See [`examples/README.md`](examples/README.md) for the full list with required env vars and setup notes.
+See the **[full examples guide](docs/examples.md)** for the complete list with env vars and setup notes.
 
 ---
 
@@ -227,23 +207,7 @@ See **[docs/architecture.md](docs/architecture.md)** for the full architecture d
 
 ## Roadmap
 
-- [x] `ocw serve` background daemon (launchd / systemd)
-- [x] Web UI for `ocw serve`
-- [x] LiteLLM provider patch
-- [x] `ocw stop` and `ocw uninstall` commands
-- [x] Claude Code integration (`ocw onboard --claude-code`)
-- [x] `ocw budget` CLI, API route, and web UI
-- [x] `ocw drift` CLI with Z-score reporting
-- [x] Full pipeline wiring (alerts, schema validation, drift detection in `ocw serve`)
-- [x] MCP server (`ocw mcp`) — 13 tools for Claude Code, no `ocw serve` dependency
-- [ ] `ocw watch` — live tail mode for spans
-- [ ] `ocw replay` — replay captured sessions against new model versions
-- [ ] Vercel AI SDK integration (TypeScript)
-- [ ] Azure AI Agent Service integration
-- [ ] TypeScript framework patches (LangChain JS, OpenAI Agents SDK)
-- [ ] Mastra integration (TypeScript)
-- [ ] Docker image
-- [ ] GitHub Actions integration for CI drift/cost checks
+See the **[full roadmap](docs/roadmap.md)** for completed and planned features.
 
 ---
 
