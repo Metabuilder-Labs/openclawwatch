@@ -19,15 +19,18 @@ This document describes the architecture of OpenClawWatch (ocw) — a local-firs
 ```mermaid
 flowchart TD
     Agent["Your agent code"]
+    ClaudeCode["Claude Code"]
 
     Agent --> PythonSDK["Python SDK\n@watch + patch_* integrations"]
     Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
+    ClaudeCode --> Logs["POST /v1/logs\nOTLP log records"]
 
     PythonSDK --> Exporter["OcwSpanExporter"]
-    TypeScriptSDK --> HTTP["POST /api/v1/spans"]
+    TypeScriptSDK --> HTTP["POST /api/v1/spans\nOTLP JSON"]
 
     Exporter --> Ingest
     HTTP --> Ingest
+    Logs --> |"log-to-span\nconversion"| Ingest
 
     Ingest["IngestPipeline\nSanitization · Session continuity · Attribute extraction"]
 
@@ -41,10 +44,12 @@ flowchart TD
 
     DB --> CLI["ocw CLI"]
     DB --> API["REST API\n:7391/docs"]
+    DB --> WebUI["Web UI\n:7391/"]
+    DB --> MCP["MCP Server\nstdio"]
     DB --> Prom["Prometheus\n:7391/metrics"]
 ```
 
-Spans from Python land via the in-process OTel exporter. Spans from TypeScript (or any external process) arrive via HTTP. Both paths converge at `IngestPipeline`. Everything downstream is identical.
+Three ingest paths, one pipeline. Spans from Python land via the in-process OTel exporter. Spans from TypeScript (or any external process) arrive via HTTP as OTLP JSON. Claude Code emits OTLP log records which are converted to spans at `/v1/logs`. All three paths converge at `IngestPipeline` — everything downstream is identical.
 
 ---
 
