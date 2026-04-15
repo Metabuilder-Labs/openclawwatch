@@ -23,6 +23,8 @@ Guided setup wizard. Creates config file, generates ingest secret, optionally in
 ocw onboard                  # interactive setup
 ocw onboard --claude-code    # configure Claude Code telemetry
 ocw onboard --no-daemon      # skip daemon installation
+ocw onboard --budget 5.00    # set daily budget during setup
+ocw onboard --force          # overwrite existing config
 ```
 
 ### `ocw doctor`
@@ -61,10 +63,10 @@ Cost breakdown by agent, model, day, or tool.
 ```bash
 ocw cost
 ocw cost --since 7d
-ocw cost --by model          # group by model
-ocw cost --by day            # group by day
-ocw cost --by agent          # group by agent
-ocw cost --by tool           # group by tool
+ocw cost --group-by model    # group by model
+ocw cost --group-by day      # group by day
+ocw cost --group-by agent    # group by agent
+ocw cost --group-by tool     # group by tool
 ```
 
 ### `ocw alerts`
@@ -76,6 +78,7 @@ ocw alerts
 ocw alerts --severity critical
 ocw alerts --type sensitive_action
 ocw alerts --since 1h
+ocw alerts --unread           # only unacknowledged alerts
 ```
 
 ### `ocw budget`
@@ -134,6 +137,9 @@ Start the local REST API server with web UI and Prometheus metrics.
 ```bash
 ocw serve                    # foreground
 ocw serve &                  # background
+ocw serve --host 0.0.0.0    # bind to all interfaces
+ocw serve --port 8080        # custom port
+ocw serve --reload           # auto-reload for development
 ```
 
 Web UI: `http://127.0.0.1:7391/`

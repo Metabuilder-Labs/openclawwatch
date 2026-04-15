@@ -74,7 +74,7 @@ include_captured_content = false
 [export]
   [export.otlp]
   endpoint = ""           # set to forward spans to an external OTel backend
-  protocol = "http/protobuf"
+  protocol = "http"            # http | grpc
 ```
 
 ## Budget limits

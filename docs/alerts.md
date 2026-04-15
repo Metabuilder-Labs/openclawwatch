@@ -13,6 +13,7 @@
 | `token_anomaly` | Token usage deviates significantly from baseline | warning |
 | `schema_violation` | Tool output fails JSON Schema validation | warning |
 | `drift_detected` | Behavioral Z-score exceeds threshold (default 2.0) | warning |
+| `session_duration` | Session wall time exceeds threshold (default 3600s) | warning |
 | `failure_rate` | >20% errors in last 20 spans (checked every 5th error) | warning |
 | `network_egress_blocked` | NemoClaw blocked an outbound network request | critical |
 | `filesystem_access_denied` | NemoClaw denied a filesystem operation | critical |
