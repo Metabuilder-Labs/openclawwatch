@@ -31,17 +31,36 @@ Your agent sends emails, writes files, calls APIs, and spends your money — all
 
 `ocw` works three ways. Pick the one that fits.
 
-### Terminal agents — zero code
+### Coding agents — zero code
 
-For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes.
+For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes — just install and onboard.
 
 ```bash
 pip install "openclawwatch[mcp]"
 ocw onboard --claude-code
-# Restart Claude Code — done.
 ```
 
-Every session, API call, tool use, and error becomes a tracked span with cost and alert evaluation. Works in both interactive and headless mode. [Full setup guide below.](#claude-code--terminal-agents)
+Restart Claude Code. That's it — every session, API call, tool use, and error is now a tracked span with cost and alert evaluation. Works in both interactive and headless mode.
+
+After a few sessions, check what happened:
+
+```bash
+ocw status                          # live cost, tokens, active alerts
+ocw traces                          # full span waterfall of every session
+ocw cost --since 7d                 # how much you've spent this week
+ocw alerts                          # anything that fired while you were away
+```
+
+`ocw` also registers an **MCP server** so Claude Code can query its own observability data mid-session — ask "how much have I spent today?" or "show me my recent traces" and Claude Code calls the right tool automatically.
+
+Adding another project is one command per repo:
+
+```bash
+cd /path/to/other-project
+ocw onboard --claude-code           # tags this project, shares the existing server
+```
+
+Each project gets its own agent ID (`claude-code-<repo-name>`) while sharing one running server and one ingest secret. [Full setup details below.](#claude-code--coding-agents)
 
 ### Python SDK
 
@@ -175,7 +194,7 @@ No signup, no cloud — runs entirely on your machine.
 
 ---
 
-## Claude Code + terminal agents
+## Claude Code + coding agents
 
 Monitor every Claude Code session — costs, tool calls, API requests, errors — with two commands:
 
@@ -338,7 +357,7 @@ Prometheus metrics at `http://127.0.0.1:7391/metrics` when `ocw serve` is runnin
 flowchart TD
     Agent["Your agent"]
 
-    Agent --> Terminal["Terminal agents\nClaude Code · Codex"]
+    Agent --> Terminal["Coding agents\nClaude Code · Codex"]
     Agent --> PythonSDK["Python SDK\n@watch + patch_*"]
     Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
 
@@ -410,7 +429,7 @@ Budget limits merge per-field: each agent inherits defaults unless overridden. S
 
 ```
 ocw onboard              Guided setup wizard
-ocw onboard --claude-code   Configure terminal agent telemetry
+ocw onboard --claude-code   Configure coding agent telemetry
 ocw doctor               Health check — config, DB, security, channels
 ocw status               Agent state, cost, tokens, active alerts
 ocw traces               Trace listing with span waterfall
