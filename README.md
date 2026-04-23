@@ -6,6 +6,8 @@
 
 **Local-first observability for autonomous AI agents.**
 
+The open-source LLM observability tool for autonomous agents.
+
 No cloud. No signup. No surprises.
 
 [![CI](https://github.com/Metabuilder-Labs/openclawwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/Metabuilder-Labs/openclawwatch/actions/workflows/ci.yml)
@@ -23,7 +25,7 @@ pip install openclawwatch
 
 ---
 
-Your agent sends emails, writes files, calls APIs, and spends your money — all while you're away. Most observability tools were built for LLM developers building chat products. `ocw` was built for **agents with real-world consequences**.
+Your agent sends emails, writes files, calls APIs, and spends your money — all while you're away. Most observability tools were built for LLM developers building chat products. `ocw` was built for **agents with real-world consequences**: real-time cost tracking, safety alerts, behavioral drift detection, all running locally on your machine.
 
 ---
 
@@ -65,7 +67,8 @@ For any Python agent — Anthropic, OpenAI, Gemini, Bedrock, LangChain, CrewAI, 
 
 ```bash
 pip install openclawwatch
-ocw onboard
+ocw onboard    # creates config, generates ingest secret
+ocw doctor     # verify your setup
 ```
 
 ```python
@@ -163,8 +166,6 @@ ocw tools            # tool call history with error rates
 ocw serve            # start the web UI + REST API
 ```
 
-All commands support `--json` for machine-readable output. Full reference: [docs/cli-reference.md](docs/cli-reference.md)
-
 ---
 
 ## Web UI
@@ -190,15 +191,15 @@ LangSmith and Langfuse are excellent for tracing LLM API calls and running evals
 
 | | `ocw` | LangSmith | Langfuse | Datadog LLM Obs |
 |---|---|---|---|---|
-| Signup required | No | Yes | Yes | Yes |
-| Data leaves your machine | No | Yes | Cloud only | Yes |
-| Real-time sensitive action alerts | Yes | — | — | — |
-| Behavioral drift detection | Yes | — | — | — |
-| Local-first, no cloud required | Yes | — | Self-host only | — |
-| OTel GenAI SemConv native | Yes | Partial | Partial | Partial |
-| NemoClaw sandbox events | Yes | — | — | — |
-| Works with any agent/framework | Yes | LangChain-first | Partial | — |
-| Free, MIT licensed | Yes | Freemium | Freemium | Paid |
+| Signup required | ❌ | ✅ | ✅ | ✅ |
+| Data leaves your machine | ❌ | ✅ | cloud only | ✅ |
+| Real-time sensitive action alerts | ✅ | ❌ | ❌ | ❌ |
+| Behavioral drift detection | ✅ | ❌ | ❌ | ❌ |
+| Local-first, no cloud required | ✅ | ❌ | self-host only | ❌ |
+| OTel GenAI SemConv native | ✅ | partial | partial | partial |
+| NemoClaw sandbox events | ✅ | ❌ | ❌ | ❌ |
+| Works with any agent/framework | ✅ | LangChain-first | partial | ❌ |
+| Free, MIT licensed | ✅ | freemium | freemium | paid |
 
 ---
 
@@ -211,16 +212,19 @@ Monitor every Claude Code session — costs, tool calls, API requests, errors �
 ```bash
 pip install "openclawwatch[mcp]"
 ocw onboard --claude-code
-# Restart Claude Code
+# Restart Claude Code, then:
+ocw status --agent claude-code-<project>
 ```
 
 `ocw onboard --claude-code` does everything in one shot:
-
-- Creates a shared config at `~/.config/ocw/config.toml`
+- Creates a shared config at `~/.config/ocw/config.toml` (one config for all projects)
 - Writes OTLP exporter vars to `~/.claude/settings.json`
-- Tags this project via `OTEL_RESOURCE_ATTRIBUTES` in `.claude/settings.json`
+- Tags this project by writing `OTEL_RESOURCE_ATTRIBUTES` to `.claude/settings.json`
 - Registers the MCP server globally (`claude mcp add --scope user ocw -- ocw mcp`)
 - Installs a background daemon (launchd on macOS, systemd on Linux)
+- Adds Docker harness-compatible OTLP env vars to `~/.zshrc`
+
+**Claude Code must be restarted** after running `ocw onboard --claude-code`.
 
 **Adding more projects** — run once per project directory:
 
@@ -230,15 +234,11 @@ ocw onboard --claude-code   # tags this project, no reinstall needed
 # Restart Claude Code
 ```
 
-Each project gets its own agent ID (`claude-code-<repo-name>`), all sharing one daemon and one ingest secret.
-
-```bash
-ocw status --agent claude-code-<project>   # check it's working
-```
+Each project gets its own agent ID (`claude-code-<repo-name>`), all sharing one server and one ingest secret.
 
 ### MCP server
 
-Onboarding registers an MCP server, giving your coding agent 13 tools to query its own observability data mid-session:
+The MCP server gives Claude Code direct access to your observability data inside the session. 13 tools available after restart:
 
 | Tool | What it does |
 |---|---|
@@ -258,39 +258,48 @@ Onboarding registers an MCP server, giving your coding agent 13 tools to query i
 
 The MCP server opens DuckDB read-only — no lock conflicts with `ocw serve`.
 
-Ask in natural language:
+**Per-project tagging** — after installing globally, ask Claude Code:
 
-```
-"How much have I spent today?"           → get_status / get_cost_summary
-"Show me my recent traces"               → list_traces
-"Are there any active alerts?"           → list_alerts
-"Which model is costing me the most?"    → get_cost_summary (group_by=model)
-"Is my agent behaving differently?"      → get_drift_report
-"Open the dashboard"                     → open_dashboard
-```
+> "Set up OCW for this project"
+
+Claude calls `setup_project`, which writes `.claude/settings.json` with the right `OTEL_RESOURCE_ATTRIBUTES` for this project.
 
 ### Codex
+
+Monitor every Codex session with two commands:
 
 ```bash
 pip install "openclawwatch[mcp]"
 ocw onboard --codex
-# Restart Codex
 ```
 
-`ocw onboard --codex` writes an `[otel]` block and `[mcp_servers.ocw]` to `~/.codex/config.toml`, tags the project as `codex-<repo-name>`, and installs the background daemon.
+Run from your project directory. `ocw onboard --codex`:
+- Writes an `[otel]` block and `[mcp_servers.ocw]` to `~/.codex/config.toml`
+- Tags the project as `codex-<repo-name>` via `service.name` in that config
+- Registers the MCP server so Codex can call OCW tools directly
+- Installs the background daemon (launchd / systemd)
 
-Unlike Claude Code, Codex has no per-project settings file — the `service.name` tag lives in `~/.codex/config.toml`. If you have multiple projects, run `ocw onboard --codex --force` from each directory to retag.
+**Codex must be restarted** after running `ocw onboard --codex`.
 
-The same 13 MCP tools are available to Codex after restart.
+Unlike Claude Code, Codex has no per-project settings file — the `service.name` tag lives in the global `~/.codex/config.toml`. If you have multiple projects, run `ocw onboard --codex --force` from each project directory to retag.
+
+```bash
+ocw status --agent codex-<project>   # check it's working
+```
+
+The same 13 MCP tools available to Claude Code are available to Codex after restart.
 
 ### Uninstalling
 
 ```bash
-ocw uninstall --yes    # removes daemon, MCP, config, data, env vars
+# Remove all OCW data, config, daemon, MCP registration, and env vars:
+ocw uninstall --yes
+
+# Then remove the package:
 pip uninstall openclawwatch -y
 ```
 
-Full Claude Code integration guide: [docs/claude-code-integration.md](docs/claude-code-integration.md)
+`ocw uninstall` cleans up everything set by `ocw onboard --claude-code`: daemon, MCP server, `~/.ocw/`, `~/.config/ocw/`, OTLP env vars in `~/.claude/settings.json`, `OTEL_RESOURCE_ATTRIBUTES` in every onboarded project's `.claude/settings.json`, and the harness env block in `~/.zshrc`.
 
 ---
 
@@ -352,13 +361,13 @@ url = "https://your-endpoint.com/alerts"
 
 Alert types: `sensitive_action` · `cost_budget_daily` · `cost_budget_session` · `session_duration` · `retry_loop` · `token_anomaly` · `schema_violation` · `drift_detected` · `failure_rate` · `network_egress_blocked` · `filesystem_access_denied` · `syscall_denied` · `inference_rerouted`
 
-Full alert reference: [docs/alerts.md](docs/alerts.md)
+Full alert reference — trigger conditions, cooldown config, content stripping, all 6 channel types: [docs/alerts.md](docs/alerts.md)
 
 ---
 
 ## NemoClaw support
 
-Running agents inside [NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)? `ocw` connects to the OpenShell Gateway WebSocket and turns sandbox events — blocked network requests, filesystem denials, inference reroutes — into alerts.
+Running OpenClaw inside [NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)? `ocw` connects to the OpenShell Gateway WebSocket and turns sandbox events — blocked network requests, filesystem denials, inference reroutes — into alerts.
 
 ```python
 from ocw.sdk.integrations.nemoclaw import watch_nemoclaw
@@ -366,6 +375,8 @@ from ocw.sdk.integrations.nemoclaw import watch_nemoclaw
 observer = watch_nemoclaw()
 asyncio.create_task(observer.connect())
 ```
+
+This is the observability layer that NemoClaw doesn't ship with.
 
 Full event table and configuration: [docs/nemoclaw-integration.md](docs/nemoclaw-integration.md)
 
@@ -382,7 +393,7 @@ ocw export --format csv
 
 Prometheus metrics at `http://127.0.0.1:7391/metrics` when `ocw serve` is running.
 
-Full export guide: [docs/export.md](docs/export.md)
+Export filtering flags, REST API endpoints, and API docs: [docs/export.md](docs/export.md)
 
 ---
 
@@ -420,7 +431,7 @@ flowchart TD
     DB --> Prom["Prometheus\n:7391/metrics"]
 ```
 
-Full architecture deep-dive: [docs/architecture.md](docs/architecture.md)
+Full architecture deep-dive — design principles, SDK internals, alert system, testing: [docs/architecture.md](docs/architecture.md)
 
 ---
 
@@ -460,7 +471,33 @@ retention_days = 90
 
 Budget limits merge per-field: each agent inherits defaults unless overridden. Set via CLI (`ocw budget --daily 10`), API, or web UI. Run `ocw doctor` to verify.
 
-Full configuration reference: [docs/configuration.md](docs/configuration.md)
+Config file discovery order, full config schema, API auth, capture settings: [docs/configuration.md](docs/configuration.md)
+
+---
+
+## CLI reference
+
+```
+ocw onboard              Guided setup wizard
+ocw onboard --claude-code   Configure coding agent telemetry
+ocw doctor               Health check — config, DB, security, channels
+ocw status               Agent state, cost, tokens, active alerts
+ocw traces               Trace listing with span waterfall
+ocw cost                 Cost breakdown by agent / model / day / tool
+ocw alerts               Alert history with type and severity filtering
+ocw budget               View and set cost limits
+ocw drift                Drift report with Z-scores
+ocw tools                Tool call history with error rates
+ocw export               Export to json / csv / otlp / openevals
+ocw mcp                  Start MCP server (stdio, for Claude Code)
+ocw serve                Local REST API + web UI + Prometheus
+ocw stop                 Stop background daemon or ocw serve
+ocw uninstall            Remove all OCW data and config
+```
+
+All commands support `--json` for machine-readable output.
+
+Global flags, per-command options, exit codes: [docs/cli-reference.md](docs/cli-reference.md)
 
 ---
 
@@ -494,7 +531,11 @@ ruff check ocw/
 mypy ocw/
 ```
 
-See [AGENTS.md](AGENTS.md) for codebase conventions. PRs welcome — if you're adding a framework integration, open an issue first.
+292 tests. 2.5 seconds. All green.
+
+See [AGENTS.md](AGENTS.md) for codebase conventions.
+
+PRs welcome. If you're adding a framework integration, open an issue first.
 
 ---
 
