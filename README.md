@@ -35,14 +35,14 @@ Your agent sends emails, writes files, calls APIs, and spends your money - all w
 
 For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes.
 
-**One-time setup** — installs the daemon, MCP server, and shared config:
+**One-time setup** - installs the daemon, MCP server, and shared config:
 
 ```bash
 pip install "openclawwatch[mcp]"
 ocw onboard --claude-code    # or: ocw onboard --codex
 ```
 
-**Per project** — run once in each project directory so `ocw` can track its telemetry separately. Each project gets its own agent ID (`claude-code-<repo-name>`) while sharing the same server:
+**Per project** - run once in each project directory so `ocw` can track its telemetry separately. Each project gets its own agent ID (`claude-code-<repo-name>`) while sharing the same server:
 
 ```bash
 cd /path/to/my-project
@@ -516,21 +516,30 @@ PRs welcome. If you're adding a framework integration, open an issue first.
 
 ## Roadmap
 
+**Shipped:**
+
 - [x] `ocw serve` background daemon (launchd / systemd)
-- [x] Web UI
-- [x] LiteLLM provider patch
+- [x] Web UI with auto-polling (status, traces, cost, alerts, budget, drift)
+- [x] LiteLLM provider patch (100+ providers)
 - [x] `ocw stop` and `ocw uninstall`
 - [x] Claude Code integration (`ocw onboard --claude-code`)
+- [x] Codex integration (`ocw onboard --codex`)
+- [x] OpenClaw integration (zero-code via `diagnostics-otel` plugin)
+- [x] NemoClaw sandbox observer (WebSocket gateway events)
+- [x] OTLP log-to-span pipeline (Claude Code log events)
 - [x] `ocw budget` CLI, API, and web UI
 - [x] `ocw drift` with Z-score reporting
 - [x] Full pipeline wiring (alerts, schema, drift in `ocw serve`)
 - [x] MCP server - 13 tools for Claude Code
-- [ ] `ocw watch` - live tail mode
-- [ ] `ocw replay` - replay sessions against new models
-- [ ] Vercel AI SDK integration
+
+**Up next:**
+
+- [ ] `ocw watch` - live tail mode for spans
+- [ ] `ocw replay` - replay captured sessions against new model versions
+- [ ] TypeScript framework patches (LangChain JS, OpenAI Agents SDK)
+- [ ] Vercel AI SDK integration (TypeScript)
+- [ ] Mastra integration (TypeScript)
 - [ ] Azure AI Agent Service integration
-- [ ] TypeScript framework patches
-- [ ] Mastra integration
 - [ ] Docker image
 - [ ] GitHub Actions for CI drift/cost checks
 
