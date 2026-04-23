@@ -214,7 +214,7 @@ LangSmith and Langfuse are excellent LLM observability platforms for tracing API
 | | `ocw` | LangSmith | Langfuse | Datadog LLM Obs |
 |---|---|---|---|---|
 | Signup required | ❌ | ✅ | ✅ | ✅ |
-| Data leaves your machine | ❌ | ✅ | ✅ | ✅ |
+| Data leaves your machine | ❌ | ✅ | cloud only | ✅ |
 | Real-time sensitive action alerts | ✅ | ❌ | ❌ | ❌ |
 | Behavioral drift detection | ✅ | ❌ | ❌ | ❌ |
 | Local-first, no cloud required | ✅ | ❌ | self-host only | ❌ |
@@ -226,6 +226,8 @@ LangSmith and Langfuse are excellent LLM observability platforms for tracing API
 ---
 
 ## Claude Code + coding agents
+
+### Claude Code
 
 Monitor every Claude Code session - costs, tool calls, API requests, errors - with two commands:
 
@@ -283,6 +285,31 @@ The MCP server opens DuckDB read-only - no lock conflicts with `ocw serve`.
 > "Set up OCW for this project"
 
 Claude calls `setup_project`, which writes `.claude/settings.json` with the right `OTEL_RESOURCE_ATTRIBUTES` for this project.
+
+### Codex
+
+Monitor every Codex session with two commands:
+
+```bash
+pip install "openclawwatch[mcp]"
+ocw onboard --codex
+```
+
+Run from your project directory. `ocw onboard --codex`:
+- Writes an `[otel]` block and `[mcp_servers.ocw]` to `~/.codex/config.toml`
+- Tags the project as `codex-<repo-name>` via `service.name` in that config
+- Registers the MCP server so Codex can call OCW tools directly
+- Installs the background daemon (launchd / systemd)
+
+**Codex must be restarted** after running `ocw onboard --codex`.
+
+Unlike Claude Code, Codex has no per-project settings file — the `service.name` tag lives in the global `~/.codex/config.toml`. If you have multiple projects, run `ocw onboard --codex --force` from each project directory to retag.
+
+```bash
+ocw status --agent codex-<project>   # check it's working
+```
+
+The same 13 MCP tools available to Claude Code are available to Codex after restart.
 
 ### Uninstalling
 
