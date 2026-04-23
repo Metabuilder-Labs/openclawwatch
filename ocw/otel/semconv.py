@@ -84,6 +84,51 @@ class ClaudeCodeEvents:
     DECISION_SOURCE  = "source"
 
 
+class CodexEvents:
+    """Event names and attributes from Codex CLI's OTel log exporter."""
+    # Event names (logRecord body values)
+    API_REQUEST   = "codex.api_request"
+    SSE_EVENT     = "codex.sse_event"
+    USER_PROMPT   = "codex.user_prompt"
+    TOOL_DECISION = "codex.tool_decision"
+    TOOL_RESULT   = "codex.tool_result"
+
+    # Standard context attributes on all events
+    CONVERSATION_ID = "conversation.id"
+    APP_VERSION     = "app.version"
+    MODEL           = "model"
+    SLUG            = "slug"
+
+    # api_request attributes
+    ATTEMPT      = "attempt"
+    DURATION_MS  = "duration_ms"
+    HTTP_STATUS  = "http.response.status_code"
+    ERROR_MESSAGE = "error.message"
+
+    # sse_event attributes
+    EVENT_KIND            = "event.kind"
+    INPUT_TOKEN_COUNT     = "input_token_count"
+    OUTPUT_TOKEN_COUNT    = "output_token_count"
+    CACHED_TOKEN_COUNT    = "cached_token_count"
+    REASONING_TOKEN_COUNT = "reasoning_token_count"
+    TOOL_TOKEN_COUNT      = "tool_token_count"
+
+    # user_prompt attributes
+    PROMPT_LENGTH = "prompt_length"
+    PROMPT        = "prompt"
+
+    # tool_decision attributes
+    TOOL_NAME       = "tool_name"
+    CALL_ID         = "call_id"
+    DECISION        = "decision"
+    DECISION_SOURCE = "source"
+
+    # tool_result attributes  (also uses TOOL_NAME, CALL_ID, DURATION_MS, ERROR_MESSAGE)
+    ARGUMENTS = "arguments"
+    SUCCESS   = "success"
+    OUTPUT    = "output"
+
+
 class OcwAttributes:
     """ocw-specific span attributes (non-standard extensions)."""
     COST_USD         = "ocw.cost_usd"
