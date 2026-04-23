@@ -23,7 +23,7 @@ pip install openclawwatch
 
 ---
 
-Your agent sends emails, writes files, calls APIs, and spends your money — all while you're away. Most observability tools were built for LLM developers building chat products. `ocw` was built for **agents with real-world consequences**: real-time cost tracking, safety alerts, behavioral drift detection, all running locally on your machine.
+Your agent sends emails, writes files, calls APIs, and spends your money - all while you're away. Most observability tools were built for LLM developers building chat products. `ocw` was built for **agents with real-world consequences**: real-time cost tracking, safety alerts, behavioral drift detection, all running locally on your machine.
 
 ---
 
@@ -31,16 +31,16 @@ Your agent sends emails, writes files, calls APIs, and spends your money — all
 
 `ocw` works three ways. Pick the one that fits.
 
-### Coding agents — zero code
+### Coding agents - zero code
 
-For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes — just install and onboard.
+For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes - just install and onboard.
 
 ```bash
 pip install "openclawwatch[mcp]"
-ocw onboard --claude-code
+ocw onboard --claude-code    # or: ocw onboard --codex
 ```
 
-Restart Claude Code. That's it — every session, API call, tool use, and error is now a tracked span with cost and alert evaluation. Works in both interactive and headless mode.
+Restart your coding agent. That's it - every session, API call, tool use, and error is now a tracked span with cost and alert evaluation. Works in both interactive and headless mode.
 
 Onboarding also registers an MCP server, giving Claude Code 13 tools to query its own observability data mid-session. Just ask in natural language:
 
@@ -73,7 +73,7 @@ Each project gets its own agent ID (`claude-code-<repo-name>`) while sharing one
 
 ### Python SDK
 
-For any Python agent — Anthropic, OpenAI, Gemini, Bedrock, LangChain, CrewAI, and [10+ more](#supported-frameworks).
+For any Python agent - Anthropic, OpenAI, Gemini, Bedrock, LangChain, CrewAI, and [10+ more](#supported-frameworks).
 
 ```bash
 pip install openclawwatch
@@ -88,7 +88,7 @@ patch_anthropic()    # auto-intercepts all Anthropic API calls
 
 @watch(agent_id="my-agent")
 def run(task: str) -> str:
-    # your agent code — nothing else to change
+    # your agent code - nothing else to change
     ...
 ```
 
@@ -123,7 +123,7 @@ await client.send([span]);
 
 ### Any OTel-compatible agent
 
-Already emitting OpenTelemetry? Point your OTLP exporter at `ocw serve` — no SDK needed:
+Already emitting OpenTelemetry? Point your OTLP exporter at `ocw serve` - no SDK needed:
 
 ```bash
 ocw serve &
@@ -133,8 +133,8 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:7391
 
 | Framework | OTel support |
 |---|---|
-| **Claude Code** | Built-in — `ocw onboard --claude-code` |
-| **OpenClaw** | Built-in (`diagnostics-otel` plugin) — [setup guide](docs/openclaw.md) |
+| **Claude Code** | Built-in - `ocw onboard --claude-code` |
+| **OpenClaw** | Built-in (`diagnostics-otel` plugin) - [setup guide](docs/openclaw.md) |
 | LlamaIndex | `opentelemetry-instrumentation-llama-index` |
 | OpenAI Agents SDK | Built-in |
 | Google ADK | Built-in |
@@ -162,11 +162,11 @@ ocw status
   send_email called (sensitive action: critical)
 ```
 
-**Real-time cost tracking.** Every LLM call is priced as it happens — by agent, model, session, and tool. Budget alerts fire before you hit the limit, not after.
+**Real-time cost tracking.** Every LLM call is priced as it happens - by agent, model, session, and tool. Budget alerts fire before you hit the limit, not after.
 
 **Safety alerts.** Configure any tool call as a sensitive action (`send_email`, `delete_file`, `submit_form`) and get notified instantly via ntfy, Discord, Telegram, webhook, or stdout.
 
-**Behavioral drift detection.** `ocw` builds a statistical baseline from your agent's real behavior and alerts when something deviates — a prompt tweak, a model update, a dependency bump. No LLM required.
+**Behavioral drift detection.** `ocw` builds a statistical baseline from your agent's real behavior and alerts when something deviates - a prompt tweak, a model update, a dependency bump. No LLM required.
 
 **Tool output validation.** Declare a JSON Schema for your tools or let `ocw` infer one automatically. Schema violations are caught the moment they occur.
 
@@ -192,20 +192,20 @@ ocw serve            # start the web UI + REST API
 
 https://github.com/user-attachments/assets/ff09caec-3487-4542-8628-d62b7d92591f
 
-- **Status** — agent overview with cost, tokens, tool calls, and active alerts
-- **Traces** — trace list with span waterfall visualization
-- **Cost** — breakdown by agent, model, day, or tool
-- **Alerts** — alert history with severity filtering
-- **Budget** — view and edit daily/session cost limits per agent
-- **Drift** — behavioral drift report with Z-score analysis
+- **Status** - agent overview with cost, tokens, tool calls, and active alerts
+- **Traces** - trace list with span waterfall visualization
+- **Cost** - breakdown by agent, model, day, or tool
+- **Alerts** - alert history with severity filtering
+- **Budget** - view and edit daily/session cost limits per agent
+- **Drift** - behavioral drift report with Z-score analysis
 
-No signup, no cloud — runs entirely on your machine.
+No signup, no cloud - runs entirely on your machine.
 
 ---
 
 ## Claude Code + coding agents
 
-Monitor every Claude Code session — costs, tool calls, API requests, errors — with two commands:
+Monitor every Claude Code session - costs, tool calls, API requests, errors - with two commands:
 
 ```bash
 pip install "openclawwatch[mcp]"
@@ -224,7 +224,7 @@ ocw status --agent claude-code-<project>
 
 **Claude Code must be restarted** after running `ocw onboard --claude-code`.
 
-**Adding more projects** — run once per project directory:
+**Adding more projects** - run once per project directory:
 
 ```bash
 cd /path/to/other-project
@@ -240,7 +240,7 @@ The MCP server gives Claude Code direct access to your observability data inside
 
 | Tool | What it does |
 |---|---|
-| `get_status` | Current agent state — tokens, cost, active alerts |
+| `get_status` | Current agent state - tokens, cost, active alerts |
 | `get_budget_headroom` | Budget limit vs spend |
 | `list_active_sessions` | All running sessions across agents |
 | `list_agents` | All known agents with lifetime cost |
@@ -254,9 +254,9 @@ The MCP server gives Claude Code direct access to your observability data inside
 | `setup_project` | Configure a project for OCW telemetry |
 | `open_dashboard` | Open the web UI (starts `ocw serve` if needed) |
 
-The MCP server opens DuckDB read-only — no lock conflicts with `ocw serve`.
+The MCP server opens DuckDB read-only - no lock conflicts with `ocw serve`.
 
-**Per-project tagging** — after installing globally, ask Claude Code:
+**Per-project tagging** - after installing globally, ask Claude Code:
 
 > "Set up OCW for this project"
 
@@ -278,7 +278,7 @@ pip uninstall openclawwatch -y
 
 ## Supported frameworks
 
-### Python — provider patches
+### Python - provider patches
 
 Intercept at the API level. Framework-agnostic.
 
@@ -294,7 +294,7 @@ from ocw.sdk.integrations.litellm   import patch_litellm    # LiteLLM (100+ prov
 
 OpenAI-compatible providers (Groq, Together, Fireworks, xAI, Azure OpenAI) work via `patch_openai(base_url=...)`.
 
-### Python — framework patches
+### Python - framework patches
 
 Instrument the framework's own abstractions:
 
@@ -336,7 +336,7 @@ Alert types: `sensitive_action` · `cost_budget_daily` · `cost_budget_session` 
 
 ## NemoClaw support
 
-Running OpenClaw inside [NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)? `ocw` connects to the OpenShell Gateway WebSocket and turns sandbox events — blocked network requests, filesystem denials, inference reroutes — into alerts.
+Running OpenClaw inside [NVIDIA NemoClaw](https://github.com/NVIDIA/NemoClaw)? `ocw` connects to the OpenShell Gateway WebSocket and turns sandbox events - blocked network requests, filesystem denials, inference reroutes - into alerts.
 
 ```python
 from ocw.sdk.integrations.nemoclaw import watch_nemoclaw
@@ -399,7 +399,7 @@ flowchart TD
 ## Configuration
 
 ```toml
-# .ocw/config.toml — generated by ocw onboard
+# .ocw/config.toml - generated by ocw onboard
 
 [defaults.budget]
 daily_usd = 10.00
@@ -439,7 +439,7 @@ Budget limits merge per-field: each agent inherits defaults unless overridden. S
 ```
 ocw onboard              Guided setup wizard
 ocw onboard --claude-code   Configure coding agent telemetry
-ocw doctor               Health check — config, DB, security, channels
+ocw doctor               Health check - config, DB, security, channels
 ocw status               Agent state, cost, tokens, active alerts
 ocw traces               Trace listing with span waterfall
 ocw cost                 Cost breakdown by agent / model / day / tool
@@ -478,10 +478,10 @@ Those tools are excellent for tracing API calls and running evals on chat output
 
 The [`examples/`](examples/) directory has runnable agents for every integration:
 
-- **Single provider** — Anthropic, OpenAI, Gemini, Bedrock, OpenAI Agents SDK
-- **Single framework** — LangChain, LangGraph, CrewAI, AutoGen, LlamaIndex
-- **Multi-integration** — provider router, CrewAI + LangChain, RAG with fallback
-- **Alerts and drift** — sensitive action alerts, budget breach, drift detection (no API keys needed)
+- **Single provider** - Anthropic, OpenAI, Gemini, Bedrock, OpenAI Agents SDK
+- **Single framework** - LangChain, LangGraph, CrewAI, AutoGen, LlamaIndex
+- **Multi-integration** - provider router, CrewAI + LangChain, RAG with fallback
+- **Alerts and drift** - sensitive action alerts, budget breach, drift detection (no API keys needed)
 
 ```bash
 python examples/single_provider/anthropic_agent.py
@@ -522,9 +522,9 @@ PRs welcome. If you're adding a framework integration, open an issue first.
 - [x] `ocw budget` CLI, API, and web UI
 - [x] `ocw drift` with Z-score reporting
 - [x] Full pipeline wiring (alerts, schema, drift in `ocw serve`)
-- [x] MCP server — 13 tools for Claude Code
-- [ ] `ocw watch` — live tail mode
-- [ ] `ocw replay` — replay sessions against new models
+- [x] MCP server - 13 tools for Claude Code
+- [ ] `ocw watch` - live tail mode
+- [ ] `ocw replay` - replay sessions against new models
 - [ ] Vercel AI SDK integration
 - [ ] Azure AI Agent Service integration
 - [ ] TypeScript framework patches
