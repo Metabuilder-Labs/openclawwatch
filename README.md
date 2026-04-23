@@ -81,7 +81,8 @@ For any Python agent - Anthropic, OpenAI, Gemini, Bedrock, LangChain, CrewAI, an
 
 ```bash
 pip install openclawwatch
-ocw onboard
+ocw onboard    # creates config, generates ingest secret
+ocw doctor     # verify your setup
 ```
 
 ```python
@@ -381,6 +382,8 @@ url = "https://your-endpoint.com/alerts"
 
 Alert types: `sensitive_action` · `cost_budget_daily` · `cost_budget_session` · `retry_loop` · `token_anomaly` · `schema_violation` · `drift_detected` · `failure_rate` · `network_egress_blocked` · `filesystem_access_denied` · `syscall_denied` · `inference_rerouted`
 
+Full alert reference — trigger conditions, cooldown config, content stripping, all 6 channel types: [docs/alerts.md](docs/alerts.md)
+
 ---
 
 ## NemoClaw support
@@ -394,6 +397,10 @@ observer = watch_nemoclaw()
 asyncio.create_task(observer.connect())
 ```
 
+This is the observability layer that NemoClaw doesn't ship with.
+
+Full event table and configuration: [docs/nemoclaw-integration.md](docs/nemoclaw-integration.md)
+
 ---
 
 ## Export and integrate
@@ -406,6 +413,8 @@ ocw export --format csv
 ```
 
 Prometheus metrics at `http://127.0.0.1:7391/metrics` when `ocw serve` is running.
+
+Export filtering flags, REST API endpoints, and API docs: [docs/export.md](docs/export.md)
 
 ---
 
@@ -442,6 +451,8 @@ flowchart TD
     DB --> MCP["MCP Server\n13 tools"]
     DB --> Prom["Prometheus\n:7391/metrics"]
 ```
+
+Full architecture deep-dive — design principles, SDK internals, alert system, testing: [docs/architecture.md](docs/architecture.md)
 
 ---
 
@@ -481,6 +492,8 @@ retention_days = 90
 
 Budget limits merge per-field: each agent inherits defaults unless overridden. Set via CLI (`ocw budget --daily 10`), API, or web UI. Run `ocw doctor` to verify.
 
+Config file discovery order, full config schema, API auth, capture settings: [docs/configuration.md](docs/configuration.md)
+
 ---
 
 ## CLI reference
@@ -504,6 +517,8 @@ ocw uninstall            Remove all OCW data and config
 ```
 
 All commands support `--json` for machine-readable output.
+
+Global flags, per-command options, exit codes: [docs/cli-reference.md](docs/cli-reference.md)
 
 ---
 
