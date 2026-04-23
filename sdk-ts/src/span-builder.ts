@@ -76,6 +76,16 @@ export class SpanBuilder {
     return this;
   }
 
+  agentName(name: string): this {
+    this.span.attributes[GenAIAttributes.AGENT_NAME] = name;
+    return this;
+  }
+
+  agentVersion(version: string): this {
+    this.span.attributes[GenAIAttributes.AGENT_VERSION] = version;
+    return this;
+  }
+
   sessionId(id: string): this {
     this.span.sessionId = id;
     this.span.attributes["gen_ai.session.id"] = id;
@@ -110,6 +120,11 @@ export class SpanBuilder {
 
   cacheReadTokens(n: number): this {
     this.span.attributes[GenAIAttributes.CACHE_READ_TOKENS] = n;
+    return this;
+  }
+
+  cacheCreateTokens(n: number): this {
+    this.span.attributes[GenAIAttributes.CACHE_CREATE_TOKENS] = n;
     return this;
   }
 

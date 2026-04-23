@@ -7,7 +7,7 @@ OpenClawWatch is MIT licensed and welcomes contributions. The codebase was built
 ```bash
 git clone https://github.com/Metabuilder-Labs/openclawwatch
 cd openclawwatch
-pip install -e ".[dev]"
+pip install -e ".[dev,mcp]"   # editable install with dev tools + MCP support
 pip install anthropic          # for running the toy agent
 ```
 

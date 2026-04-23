@@ -284,8 +284,11 @@ def _onboard_claude_code(
 
     want_daemon = not no_daemon
     if want_daemon:
-        console.print("  Daemon:              auto-installing (use --no-daemon to skip)")
-        _install_daemon(str(config_path.resolve()))
+        if not force and _daemon_already_running():
+            console.print("  Daemon:              already running (skipped reinstall)")
+        else:
+            console.print("  Daemon:              installing...")
+            _install_daemon(str(config_path.resolve()))
 
     console.print()
     console.print("[bold green]Claude Code observability configured.[/bold green]")
@@ -328,6 +331,27 @@ def _derive_project_name() -> str:
     except Exception:
         pass
     return Path.cwd().name.lower()
+
+
+def _daemon_already_running() -> bool:
+    """Check if the OCW daemon is already installed and loaded."""
+    system = platform.system()
+    if system == "Darwin":
+        plist = Path.home() / "Library/LaunchAgents/com.openclawwatch.serve.plist"
+        if not plist.exists():
+            return False
+        result = subprocess.run(
+            ["launchctl", "list", "com.openclawwatch.serve"],
+            capture_output=True, text=True,
+        )
+        return result.returncode == 0
+    elif system == "Linux":
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", "openclawwatch"],
+            capture_output=True, text=True,
+        )
+        return result.stdout.strip() == "active"
+    return False
 
 
 def _install_daemon(config_path: str) -> str | None:
@@ -396,6 +420,10 @@ def _install_launchd(config_path: str) -> str | None:
         console.print("[dim]Or run the server directly:[/dim]")
         console.print("  ocw serve &")
         return None
+    console.print(
+        "  [dim]macOS will show a 'Background Items Added' notification "
+        "-- this is normal.[/dim]"
+    )
     return f"Daemon installed at {plist_path}"
 
 

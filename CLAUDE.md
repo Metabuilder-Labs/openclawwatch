@@ -46,6 +46,7 @@ openclawwatch/
 │   ├── core/               Domain logic — NO CLI or HTTP imports allowed here
 │   ├── otel/               OTel SDK wiring + semantic conventions
 │   ├── api/                FastAPI local REST API
+│   ├── mcp/                MCP stdio server (Claude Code integration)
 │   ├── sdk/                Python instrumentation SDK
 │   └── utils/              Formatting, time parsing, ID generation
 ├── examples/               Runnable example agents (see examples/README.md)
@@ -105,6 +106,7 @@ Post-ingest hooks run synchronously after each span is written to DB:
 - **`ocw/api/middleware.py`**: `IngestAuthMiddleware` — protects `POST /api/v1/spans` with Bearer token. Returns `JSONResponse(401)` directly (not `HTTPException`, which doesn't propagate from `BaseHTTPMiddleware.dispatch`).
 - **`ocw/api/deps.py`**: `require_api_key` — FastAPI dependency for optional API key auth on GET endpoints. Only enforced when `api.auth.enabled = true` in config.
 - **`ocw/api/routes/`**: One file per resource — `spans.py` (OTLP JSON ingest), `traces.py`, `cost.py`, `tools.py`, `alerts.py`, `drift.py`, `metrics.py` (Prometheus text format from DB queries).
+- **`ocw/mcp/server.py`**: FastMCP stdio server exposing observability data to Claude Code. Uses either a read-only DuckDB connection or HTTP proxy to `ocw serve`. Initialized via `init()` from `cmd_mcp.py`.
 - **`ocw/cli/main.py`**: Root Click group with global options (`--config`, `--json`, `--no-color`, `--db`, `--agent`, `-v`). Registers all subcommands.
 
 ### CLI Commands
@@ -121,6 +123,9 @@ Post-ingest hooks run synchronously after each span is written to DB:
 | `ocw export` | `cmd_export.py` | Export spans as json (NDJSON), csv, otlp, or openevals format |
 | `ocw serve` | `cmd_serve.py` | Start FastAPI + uvicorn server with retention cleanup cron |
 | `ocw stop` | `cmd_stop.py` | Stop background daemon or ocw serve process |
+| `ocw budget` | `cmd_budget.py` | Get/set daily and session budget limits per agent or globally |
+| `ocw drift` | `cmd_drift.py` | Show drift baselines and Z-scores for recent sessions |
+| `ocw mcp` | `cmd_mcp.py` | Start the stdio MCP server for Claude Code integration |
 | `ocw uninstall` | `cmd_uninstall.py` | Remove all OCW data, config, and daemon |
 | `ocw doctor` | `cmd_doctor.py` | Health checks (config, DB, secrets, webhooks). Exit 0/1/2 |
 
@@ -161,6 +166,7 @@ When a span has a `conversation_id` matching an existing session, it's attribute
 11. **OTel TracerProvider is global and set-once** — `trace.set_tracer_provider()` only works once per process. In tests, set the provider once at module level (not per-test in a fixture) and clear spans between tests. Use a custom `_CollectingExporter(SpanExporter)` since `InMemorySpanExporter` is not available in the installed OTel version. See `tests/agents/test_mock_scenarios.py` for the SDK test pattern and `tests/integration/test_full_pipeline.py` for the pipeline pattern.
 12. **New SDK integrations must call `ensure_initialised()`** — every `patch_*()` convenience function must call `from ocw.sdk.bootstrap import ensure_initialised; ensure_initialised()` before installing hooks. This lazily bootstraps the TracerProvider + IngestPipeline on first use.
 13. **PyPI package name is `openclawwatch`, not `ocw`** — `pip install openclawwatch` is the correct install command. The CLI command is `ocw` and the Python package directory is `ocw/`, but the published package name on PyPI is `openclawwatch`. Never write `pip install ocw` in docs, examples, or comments.
+14. **Version bump on release** — both `pyproject.toml` (`version = "X.Y.Z"`) and `sdk-ts/package.json` (`"version": "X.Y.Z"`) must be bumped to the new version before creating a GitHub release. The publish workflows (`publish-pypi.yml`, `publish-npm.yml`) trigger on `release published` events and will fail with 403 if the version already exists on PyPI/npm.
 
 ## Config
 
