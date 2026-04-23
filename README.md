@@ -33,24 +33,33 @@ Your agent sends emails, writes files, calls APIs, and spends your money - all w
 
 ### Coding agents - zero code
 
-For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes - just install and onboard.
+For **Claude Code**, **Codex**, and any agent that already emits OpenTelemetry. No SDK, no code changes.
+
+**One-time setup** — installs the daemon, MCP server, and shared config:
 
 ```bash
 pip install "openclawwatch[mcp]"
 ocw onboard --claude-code    # or: ocw onboard --codex
 ```
 
-Restart your coding agent. That's it - every session, API call, tool use, and error is now a tracked span with cost and alert evaluation. Works in both interactive and headless mode.
+**Per project** — run once in each project directory so `ocw` can track its telemetry separately. Each project gets its own agent ID (`claude-code-<repo-name>`) while sharing the same server:
+
+```bash
+cd /path/to/my-project
+ocw onboard --claude-code    # writes OTEL_RESOURCE_ATTRIBUTES to .claude/settings.json
+```
+
+Restart your coding agent after onboarding. Every session, API call, tool use, and error is now a tracked span with cost and alert evaluation. Works in both interactive and headless mode.
 
 Onboarding also registers an MCP server, giving Claude Code 13 tools to query its own observability data mid-session. Just ask in natural language:
 
 ```
-You: "How much have I spent today?"           → get_status / get_cost_summary
-You: "Show me my recent traces"               → list_traces
-You: "Are there any active alerts?"           → list_alerts
-You: "Which model is costing me the most?"    → get_cost_summary (group_by=model)
-You: "Is my agent behaving differently?"      → get_drift_report
-You: "Open the dashboard"                     → open_dashboard
+"How much have I spent today?"           → get_status / get_cost_summary
+"Show me my recent traces"               → list_traces
+"Are there any active alerts?"           → list_alerts
+"Which model is costing me the most?"    → get_cost_summary (group_by=model)
+"Is my agent behaving differently?"      → get_drift_report
+"Open the dashboard"                     → open_dashboard
 ```
 
 Or query from the CLI in a separate terminal:
@@ -62,14 +71,7 @@ ocw cost --since 7d                 # spending breakdown for the week
 ocw alerts                          # anything that fired while you were away
 ```
 
-Adding another project is one command per repo:
-
-```bash
-cd /path/to/other-project
-ocw onboard --claude-code           # tags this project, shares the existing server
-```
-
-Each project gets its own agent ID (`claude-code-<repo-name>`) while sharing one running server and one ingest secret. [Full setup details below.](#claude-code--coding-agents)
+[Full setup details below.](#claude-code--coding-agents)
 
 ### Python SDK
 
