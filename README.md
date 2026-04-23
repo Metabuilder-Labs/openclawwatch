@@ -350,7 +350,7 @@ type = "webhook"
 url = "https://your-endpoint.com/alerts"
 ```
 
-Alert types: `sensitive_action` · `cost_budget_daily` · `cost_budget_session` · `retry_loop` · `token_anomaly` · `schema_violation` · `drift_detected` · `failure_rate` · `network_egress_blocked` · `filesystem_access_denied` · `syscall_denied` · `inference_rerouted`
+Alert types: `sensitive_action` · `cost_budget_daily` · `cost_budget_session` · `session_duration` · `retry_loop` · `token_anomaly` · `schema_violation` · `drift_detected` · `failure_rate` · `network_egress_blocked` · `filesystem_access_denied` · `syscall_denied` · `inference_rerouted`
 
 Full alert reference: [docs/alerts.md](docs/alerts.md)
 
@@ -397,9 +397,9 @@ flowchart TD
     Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
 
     Terminal --> OTLP["OTLP export"]
-    OTLP --> HTTP
     PythonSDK --> Exporter["OcwSpanExporter"]
     TypeScriptSDK --> HTTP["POST /api/v1/spans"]
+    OTLP --> HTTP
 
     Exporter --> Ingest
     HTTP --> Ingest
