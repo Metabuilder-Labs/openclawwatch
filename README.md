@@ -8,6 +8,8 @@
 
 No cloud. No signup. No surprises.
 
+The open-source LLM observability tool for autonomous agents.
+
 [![CI](https://github.com/Metabuilder-Labs/openclawwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/Metabuilder-Labs/openclawwatch/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/openclawwatch?color=3d8eff&labelColor=0d1117)](https://pypi.org/project/openclawwatch/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3d8eff?labelColor=0d1117)](https://pypi.org/project/openclawwatch/)
@@ -202,6 +204,24 @@ https://github.com/user-attachments/assets/ff09caec-3487-4542-8628-d62b7d92591f
 - **Drift** - behavioral drift report with Z-score analysis
 
 No signup, no cloud - runs entirely on your machine.
+
+---
+
+## ocw vs LangSmith vs Langfuse
+
+LangSmith and Langfuse are excellent LLM observability platforms for tracing API calls and running evals on chat outputs. `ocw` solves a different problem: **autonomous agents running unsupervised with real-world consequences**.
+
+| | `ocw` | LangSmith | Langfuse | Datadog LLM Obs |
+|---|---|---|---|---|
+| Signup required | ❌ | ✅ | ✅ | ✅ |
+| Data leaves your machine | ❌ | ✅ | ✅ | ✅ |
+| Real-time sensitive action alerts | ✅ | ❌ | ❌ | ❌ |
+| Behavioral drift detection | ✅ | ❌ | ❌ | ❌ |
+| Local-first, no cloud required | ✅ | ❌ | self-host only | ❌ |
+| OTel GenAI SemConv native | ✅ | partial | partial | partial |
+| NemoClaw sandbox events | ✅ | ❌ | ❌ | ❌ |
+| Works with any agent/framework | ✅ | LangChain-first | partial | ❌ |
+| Free, MIT licensed | ✅ | freemium | freemium | paid |
 
 ---
 
@@ -457,22 +477,6 @@ ocw uninstall            Remove all OCW data and config
 ```
 
 All commands support `--json` for machine-readable output.
-
----
-
-## Why not LangSmith / Langfuse / Datadog?
-
-Those tools are excellent for tracing API calls and running evals on chat outputs. `ocw` solves a different problem: **autonomous agents running unsupervised with real-world consequences**.
-
-| | `ocw` | LangSmith | Langfuse | Datadog LLM Obs |
-|---|---|---|---|---|
-| Real-time sensitive action alerts | ✅ | ❌ | ❌ | ❌ |
-| Behavioral drift detection | ✅ | ❌ | ❌ | ❌ |
-| Local-first, no cloud required | ✅ | ❌ | self-host only | ❌ |
-| OTel GenAI SemConv native | ✅ | partial | partial | partial |
-| NemoClaw sandbox events | ✅ | ❌ | ❌ | ❌ |
-| Works with any agent/framework | ✅ | LangChain-first | partial | ❌ |
-| Free, MIT licensed | ✅ | freemium | freemium | paid |
 
 ---
 
