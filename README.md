@@ -4,8 +4,6 @@
 
 # OpenClawWatch
 
-**Local-first observability for autonomous AI agents.**
-
 The open-source LLM observability tool for autonomous agents.
 
 No cloud. No signup. No surprises.
