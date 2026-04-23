@@ -42,16 +42,25 @@ ocw onboard --claude-code
 
 Restart Claude Code. That's it — every session, API call, tool use, and error is now a tracked span with cost and alert evaluation. Works in both interactive and headless mode.
 
-After a few sessions, check what happened:
+Onboarding also registers an MCP server, giving Claude Code 13 tools to query its own observability data mid-session. Just ask in natural language:
+
+```
+You: "How much have I spent today?"           → get_status / get_cost_summary
+You: "Show me my recent traces"               → list_traces
+You: "Are there any active alerts?"           → list_alerts
+You: "Which model is costing me the most?"    → get_cost_summary (group_by=model)
+You: "Is my agent behaving differently?"      → get_drift_report
+You: "Open the dashboard"                     → open_dashboard
+```
+
+Or query from the CLI in a separate terminal:
 
 ```bash
 ocw status                          # live cost, tokens, active alerts
 ocw traces                          # full span waterfall of every session
-ocw cost --since 7d                 # how much you've spent this week
+ocw cost --since 7d                 # spending breakdown for the week
 ocw alerts                          # anything that fired while you were away
 ```
-
-`ocw` also registers an **MCP server** so Claude Code can query its own observability data mid-session — ask "how much have I spent today?" or "show me my recent traces" and Claude Code calls the right tool automatically.
 
 Adding another project is one command per repo:
 
