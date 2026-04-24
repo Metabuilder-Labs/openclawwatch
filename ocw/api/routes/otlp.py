@@ -46,10 +46,9 @@ async def otlp_logs(request: Request) -> JSONResponse:
         return JSONResponse(status_code=400, content={"error": "Invalid JSON body"})
 
     if not isinstance(body, dict) or "resourceLogs" not in body:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Expected OTLP JSON with 'resourceLogs' key"},
-        )
+        # Non-log OTLP signals (resourceSpans, resourceMetrics) routed here
+        # when an SDK uses this endpoint as its base — silently ignore.
+        return JSONResponse(status_code=200, content={"ingested": 0, "rejected": 0, "rejections": []})
 
     pipeline = request.app.state.pipeline
     ingested, rejections = parse_log_records(body, pipeline)

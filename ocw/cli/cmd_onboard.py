@@ -340,13 +340,25 @@ def _onboard_codex(
             type=float, default=0.0, show_default=False,
         )
 
-    # Use the same config discovery order as `ocw serve` so that the ingest
-    # secret written to ~/.codex/config.toml always matches the running server.
-    existing_path = find_config_file()
-    fallback_path = Path.home() / ".config" / "ocw" / "config.toml"
-    # Always prefer the discovered config over the global fallback so the
-    # Codex secret stays consistent with whatever server is already running.
-    config_path = existing_path if existing_path is not None else fallback_path
+    # Prefer the running server's config over CWD discovery — otherwise the
+    # secret written to Codex mismatches when onboard runs from a different
+    # project than where `ocw serve` was started.
+    import json as _json
+    _state_path = Path.home() / ".local" / "share" / "ocw" / "server.state"
+    config_path: Path | None = None
+    if _state_path.exists():
+        try:
+            _state = _json.loads(_state_path.read_text())
+            _cp = _state.get("config_path")
+            if _cp and Path(_cp).exists():
+                config_path = Path(_cp)
+        except Exception:
+            pass
+    if config_path is None:
+        existing_path = find_config_file()
+        fallback_path = Path.home() / ".config" / "ocw" / "config.toml"
+        config_path = existing_path if existing_path is not None else fallback_path
+    assert config_path is not None  # fallback_path is always set
 
     previous_secret: str | None = None
     if config_path.exists():
