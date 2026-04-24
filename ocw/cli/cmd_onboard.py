@@ -325,13 +325,11 @@ def _onboard_codex(
         import tomllib  # type: ignore[import]
     except ImportError:
         import tomli as tomllib  # type: ignore[no-redef]
-    import re as _re
 
     from ocw.core.config import (
-        AgentConfig, BudgetConfig, OcwConfig, SecurityConfig, load_config, write_config,
+        AgentConfig, BudgetConfig, OcwConfig, SecurityConfig,
+        find_config_file, load_config, write_config,
     )
-
-    global_config_path = Path.home() / ".config" / "ocw" / "config.toml"
 
     project_name = _derive_project_name()
     agent_id = f"codex-{project_name}"
@@ -342,21 +340,28 @@ def _onboard_codex(
             type=float, default=0.0, show_default=False,
         )
 
+    # Use the same config discovery order as `ocw serve` so that the ingest
+    # secret written to ~/.codex/config.toml always matches the running server.
+    existing_path = find_config_file()
+    fallback_path = Path.home() / ".config" / "ocw" / "config.toml"
+    # Always prefer the discovered config over the global fallback so the
+    # Codex secret stays consistent with whatever server is already running.
+    config_path = existing_path if existing_path is not None else fallback_path
+
     previous_secret: str | None = None
-    if global_config_path.exists():
+    if config_path.exists():
         try:
-            prev_cfg = load_config(str(global_config_path))
+            prev_cfg = load_config(str(config_path))
             previous_secret = prev_cfg.security.ingest_secret
         except Exception:
             previous_secret = None
 
-    if global_config_path.exists() and not force:
-        config = load_config(str(global_config_path))
+    if config_path.exists():
+        config = load_config(str(config_path))
         if agent_id not in config.agents:
             config.agents[agent_id] = AgentConfig()
         if budget and budget > 0:
             config.agents[agent_id].budget.daily_usd = budget
-        config_path = global_config_path
         write_config(config, config_path)
         console.print(f"  ocw config updated: {config_path}")
     else:
@@ -368,7 +373,6 @@ def _onboard_codex(
             agents=agents,
             security=SecurityConfig(ingest_secret=ingest_secret),
         )
-        config_path = global_config_path
         config_path.parent.mkdir(parents=True, exist_ok=True)
         write_config(config, config_path)
         console.print(f"  ocw config written to: {config_path}")
@@ -456,7 +460,7 @@ def _onboard_codex(
     console.print(f"  OTLP endpoint:       http://127.0.0.1:{port}/v1/logs")
     if secret:
         console.print(f"  Ingest secret:       {secret[:8]}...")
-    console.print(f"  MCP server:          ocw mcp (registered in Codex config)")
+    console.print("  MCP server:          ocw mcp (registered in Codex config)")
     if restart_msg:
         console.print(f"  Server restart:      {restart_msg}")
     console.print()

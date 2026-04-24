@@ -98,6 +98,7 @@ class CodexEvents:
     APP_VERSION     = "app.version"
     MODEL           = "model"
     SLUG            = "slug"
+    EVENT_TIMESTAMP = "event.timestamp"  # ISO-8601 UTC; Codex sets timeUnixNano=0
 
     # api_request attributes
     ATTEMPT      = "attempt"

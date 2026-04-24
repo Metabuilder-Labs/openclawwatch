@@ -1,18 +1,25 @@
-"""Unit tests for the Claude Code log-to-span converter."""
+"""Unit tests for the Claude Code and Codex log-to-span converters."""
 from __future__ import annotations
 
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
 from ocw.api.routes.logs import (
     _api_error_to_span,
     _api_request_to_span,
+    _codex_api_request_to_span,
+    _codex_sse_event_to_span,
+    _codex_tool_decision_to_span,
+    _codex_tool_result_to_span,
+    _codex_user_prompt_to_span,
     _span_id_from_prompt,
     _tool_decision_to_span,
     _tool_result_to_span,
     _trace_id_from_session,
     _user_prompt_to_span,
+    parse_log_records,
 )
 from ocw.core.models import SpanKind, SpanStatus
 from ocw.otel.semconv import GenAIAttributes
@@ -269,3 +276,238 @@ def test_api_error_missing_error_raises():
     }
     with pytest.raises(KeyError):
         _api_error_to_span(attrs, RESOURCE, NOW_NS)
+
+
+# ── Codex converter tests ────────────────────────────────────────────────
+
+CODEX_CONV_ID = "conv-codex-abc"
+CODEX_RESOURCE = {"service.name": "codex-openclawwatch"}
+
+
+def _codex_sse_attrs(**overrides) -> dict:
+    base = {
+        "conversation.id": CODEX_CONV_ID,
+        "model": "gpt-5.4",
+        "event.kind": "response.completed",
+        "input_token_count": 800,
+        "output_token_count": 150,
+        "cached_token_count": 200,
+        "duration_ms": 900.0,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_codex_sse_completion_produces_llm_span():
+    span = _codex_sse_event_to_span(_codex_sse_attrs(), CODEX_RESOURCE, NOW_NS)
+    assert span is not None
+    assert span.name == GenAIAttributes.SPAN_LLM_CALL
+    assert span.kind == SpanKind.CLIENT
+    assert span.status_code == SpanStatus.OK
+    assert span.provider == "openai"
+    assert span.model == "gpt-5.4"
+    assert span.input_tokens == 800
+    assert span.output_tokens == 150
+    assert span.cache_tokens == 200
+    assert span.session_id == CODEX_CONV_ID
+    assert span.agent_id == "codex-openclawwatch"
+
+
+def test_codex_sse_non_completion_returns_none():
+    span = _codex_sse_event_to_span(
+        _codex_sse_attrs(**{"event.kind": "content_block_delta"}), CODEX_RESOURCE, NOW_NS
+    )
+    assert span is None
+
+
+def test_codex_sse_reasoning_tokens_in_attributes():
+    span = _codex_sse_event_to_span(
+        _codex_sse_attrs(**{"reasoning_token_count": 50}), CODEX_RESOURCE, NOW_NS
+    )
+    assert span is not None
+    assert span.attributes.get("reasoning_token_count") == 50
+
+
+def test_codex_user_prompt_produces_invoke_agent_span():
+    attrs = {
+        "conversation.id": CODEX_CONV_ID,
+        "prompt_length": 25,
+        "prompt": "echo hello",
+    }
+    span = _codex_user_prompt_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span.name == GenAIAttributes.SPAN_INVOKE_AGENT
+    assert span.kind == SpanKind.SERVER
+    assert span.status_code == SpanStatus.OK
+    assert span.session_id == CODEX_CONV_ID
+    assert span.attributes.get("prompt_length") == 25
+    assert span.attributes.get("prompt") == "echo hello"
+
+
+def test_codex_tool_decision_produces_internal_span():
+    attrs = {
+        "conversation.id": CODEX_CONV_ID,
+        "tool_name": "shell",
+        "call_id": "call-1",
+        "decision": "allow",
+        "source": "auto",
+    }
+    span = _codex_tool_decision_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span.name == "tool_decision"
+    assert span.kind == SpanKind.INTERNAL
+    assert span.tool_name == "shell"
+    assert span.attributes.get("decision") == "allow"
+    assert span.attributes.get("source") == "auto"
+    assert span.attributes.get("call_id") == "call-1"
+
+
+def test_codex_tool_result_success_produces_ok_span():
+    attrs = {
+        "conversation.id": CODEX_CONV_ID,
+        "tool_name": "shell",
+        "success": True,
+        "duration_ms": 120.0,
+        "arguments": '{"command": "echo hello"}',
+        "call_id": "call-1",
+    }
+    span = _codex_tool_result_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span.name == GenAIAttributes.SPAN_TOOL_CALL
+    assert span.kind == SpanKind.INTERNAL
+    assert span.status_code == SpanStatus.OK
+    assert span.tool_name == "shell"
+    assert span.duration_ms == pytest.approx(120.0)
+    assert span.status_message is None
+    assert span.attributes.get("call_id") == "call-1"
+
+
+def test_codex_tool_result_failure_produces_error_span():
+    attrs = {
+        "conversation.id": CODEX_CONV_ID,
+        "tool_name": "shell",
+        "success": False,
+        "error.message": "permission denied",
+        "duration_ms": 5.0,
+    }
+    span = _codex_tool_result_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span.status_code == SpanStatus.ERROR
+    assert span.status_message == "permission denied"
+
+
+def test_codex_api_request_with_error_produces_error_span():
+    attrs = {
+        "conversation.id": CODEX_CONV_ID,
+        "model": "gpt-5.4",
+        "error.message": "rate_limit_exceeded",
+        "http.response.status_code": 429,
+        "attempt": 1,
+        "duration_ms": 50.0,
+    }
+    span = _codex_api_request_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span is not None
+    assert span.name == GenAIAttributes.SPAN_LLM_CALL
+    assert span.status_code == SpanStatus.ERROR
+    assert span.status_message == "rate_limit_exceeded"
+    assert span.provider == "openai"
+    assert span.attributes.get("http.response.status_code") == 429
+
+
+def test_codex_api_request_without_error_returns_none():
+    attrs = {
+        "conversation.id": CODEX_CONV_ID,
+        "model": "gpt-5.4",
+        "duration_ms": 900.0,
+    }
+    span = _codex_api_request_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span is None
+
+
+def test_codex_trace_id_from_conversation_id():
+    span = _codex_sse_event_to_span(_codex_sse_attrs(), CODEX_RESOURCE, NOW_NS)
+    assert span is not None
+    assert span.trace_id == _trace_id_from_session(CODEX_CONV_ID)
+
+
+def test_codex_missing_conversation_id_defaults_to_unknown():
+    attrs = _codex_sse_attrs()
+    del attrs["conversation.id"]
+    span = _codex_sse_event_to_span(attrs, CODEX_RESOURCE, NOW_NS)
+    assert span is not None
+    assert span.session_id == "unknown"
+
+
+# ── parse_log_records: Codex-specific behavior ───────────────────────────
+
+def _make_codex_log_body(event_name: str, attrs_list: list[dict], ts_iso: str) -> dict:
+    """Build a minimal OTLP resourceLogs payload as Codex sends it."""
+    all_attrs = [
+        {"key": "event.name", "value": {"stringValue": event_name}},
+        {"key": "event.timestamp", "value": {"stringValue": ts_iso}},
+    ] + attrs_list
+    return {
+        "resourceLogs": [{
+            "resource": {
+                "attributes": [
+                    {"key": "service.name", "value": {"stringValue": "codex-test"}},
+                ],
+            },
+            "scopeLogs": [{
+                "logRecords": [{
+                    "timeUnixNano": "0",
+                    "body": {},
+                    "attributes": all_attrs,
+                }],
+            }],
+        }],
+    }
+
+
+def test_parse_log_records_codex_event_name_from_attrs():
+    """Event name in attrs["event.name"] is picked up when body is empty."""
+    attrs_list = [
+        {"key": "conversation.id", "value": {"stringValue": "conv-xyz"}},
+        {"key": "event.kind", "value": {"stringValue": "response.completed"}},
+        {"key": "model", "value": {"stringValue": "gpt-5.4"}},
+        {"key": "input_token_count", "value": {"intValue": "100"}},
+        {"key": "output_token_count", "value": {"intValue": "20"}},
+        {"key": "cached_token_count", "value": {"intValue": "0"}},
+        {"key": "duration_ms", "value": {"doubleValue": 500.0}},
+    ]
+    body = _make_codex_log_body("codex.sse_event", attrs_list, "2026-04-24T10:00:00Z")
+    pipeline = MagicMock()
+    ingested, rejections = parse_log_records(body, pipeline)
+    assert ingested == 1
+    assert rejections == []
+    pipeline.process.assert_called_once()
+    span = pipeline.process.call_args[0][0]
+    assert span.name == GenAIAttributes.SPAN_LLM_CALL
+    assert span.input_tokens == 100
+
+
+def test_parse_log_records_codex_epoch_timestamp_fallback():
+    """timeUnixNano=0 falls back to event.timestamp ISO-8601 attribute."""
+    attrs_list = [
+        {"key": "conversation.id", "value": {"stringValue": "conv-xyz"}},
+        {"key": "event.kind", "value": {"stringValue": "response.completed"}},
+        {"key": "model", "value": {"stringValue": "gpt-5.4"}},
+        {"key": "input_token_count", "value": {"intValue": "50"}},
+        {"key": "output_token_count", "value": {"intValue": "10"}},
+        {"key": "cached_token_count", "value": {"intValue": "0"}},
+        {"key": "duration_ms", "value": {"doubleValue": 200.0}},
+    ]
+    body = _make_codex_log_body("codex.sse_event", attrs_list, "2026-04-24T15:30:00Z")
+    pipeline = MagicMock()
+    parse_log_records(body, pipeline)
+    span = pipeline.process.call_args[0][0]
+    # Start time must not be epoch; must be 2026-04-24
+    assert span.start_time.year == 2026
+    assert span.start_time.month == 4
+    assert span.start_time.day == 24
+
+
+def test_parse_log_records_unknown_event_skipped():
+    """Unknown event names produce no span and no rejection."""
+    body = _make_codex_log_body("codex.unknown_event", [], "2026-04-24T10:00:00Z")
+    pipeline = MagicMock()
+    ingested, rejections = parse_log_records(body, pipeline)
+    assert ingested == 0
+    assert rejections == []
+    pipeline.process.assert_not_called()

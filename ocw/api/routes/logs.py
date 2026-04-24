@@ -292,7 +292,7 @@ def _codex_sse_event_to_span(
     event.kind == "completion" and carries token counts.  All other
     kinds (e.g. "content_block_delta") are skipped.
     """
-    if attrs.get(CodexEvents.EVENT_KIND) != "completion":
+    if attrs.get(CodexEvents.EVENT_KIND) != "response.completed":
         return None
 
     conversation_id = str(attrs.get(CodexEvents.CONVERSATION_ID, "unknown"))
@@ -466,15 +466,34 @@ def parse_log_records(
                 body_val = record.get("body", {})
                 event_name = _otlp_value(body_val) if isinstance(body_val, dict) else body_val
 
+                # Parse attributes here — needed both for the Codex event.name
+                # fallback and for converters that follow.
+                attrs = _parse_attrs(record.get("attributes", []))
+
+                # Codex CLI puts the event name in attrs["event.name"] rather
+                # than the log record body; fall back to that when body is empty.
+                if not isinstance(event_name, str):
+                    event_name = attrs.get("event.name")
+
                 if not isinstance(event_name, str):
                     continue
+
+                # Codex CLI sets timeUnixNano=0 and puts the real timestamp in
+                # attrs["event.timestamp"] as an ISO-8601 UTC string.
+                if timestamp_ns == 0:
+                    ts_str = attrs.get(CodexEvents.EVENT_TIMESTAMP)
+                    if ts_str:
+                        try:
+                            dt = datetime.fromisoformat(ts_str.rstrip("Z") + "+00:00")
+                            timestamp_ns = int(dt.timestamp() * 1e9)
+                        except ValueError:
+                            pass
 
                 converter = _CONVERTERS.get(event_name)
                 if converter is None:
                     # Unknown event — skip silently
                     continue
 
-                attrs = _parse_attrs(record.get("attributes", []))
                 record_id = f"{event_name}:{timestamp_ns}"
 
                 try:
