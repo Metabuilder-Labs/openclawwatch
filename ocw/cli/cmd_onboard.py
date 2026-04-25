@@ -331,8 +331,9 @@ def _onboard_codex(
         find_config_file, load_config, write_config,
     )
 
-    project_name = _derive_project_name()
-    agent_id = f"codex-{project_name}"
+    # Codex hardcodes service.name="codex_exec" in its binary regardless of
+    # what [otel.resource] says, so all Codex traces land under "codex_exec".
+    agent_id = "codex_exec"
 
     if budget is None:
         budget = click.prompt(
@@ -466,7 +467,6 @@ def _onboard_codex(
     console.print("[bold green]Codex CLI observability configured.[/bold green]")
     console.print(f"  Codex config:        {codex_config_path}")
     console.print(f"  OCW config:          {config_path}")
-    console.print(f"  Agent ID:            {agent_id}")
     if budget and budget > 0:
         console.print(f"  Daily budget:        ${budget:.2f}")
     console.print(f"  OTLP endpoint:       http://127.0.0.1:{port}/v1/logs")
@@ -481,7 +481,7 @@ def _onboard_codex(
     console.print(
         "[dim]Codex can now call OCW tools (open_dashboard, get_status, etc.) directly.[/dim]"
     )
-    console.print(f"[dim]Then check:[/dim]  ocw status --agent {agent_id}")
+    console.print("[dim]Then run:[/dim]  ocw traces")
 
 
 def _restart_ocw_server_for_secret_rotation(config_path: str, no_daemon: bool) -> str:
@@ -574,6 +574,8 @@ def _codex_strip_otel_sections(content: str) -> str:
 def _codex_otel_toml_block(port: int, secret: str, agent_id: str) -> str:
     """Return the [otel] TOML block to append to ~/.codex/config.toml."""
     endpoint = f"http://127.0.0.1:{port}/v1/logs"
+    # Note: Codex CLI hardcodes service.name="codex_exec" in the binary and
+    # ignores [otel.resource] entirely, so we don't write a resource block.
     return (
         f'[otel]\n'
         f'# Managed by ocw — do not edit this block manually\n'
@@ -585,13 +587,10 @@ def _codex_otel_toml_block(port: int, secret: str, agent_id: str) -> str:
         f'\n'
         f'[otel.exporter."otlp-http".headers]\n'
         f'Authorization = "Bearer {secret}"\n'
-        f'\n'
-        f'[otel.resource]\n'
-        f'"service.name" = "{agent_id}"\n'
     )
 
 
-def _print_codex_otel_block(port: int, secret: str, agent_id: str) -> None:
+def _print_codex_otel_block(port: int, secret: str, agent_id: str = "codex_exec") -> None:
     console.print("[dim]Add this to ~/.codex/config.toml:[/dim]")
     console.print()
     block = _codex_otel_toml_block(port, secret, agent_id)
