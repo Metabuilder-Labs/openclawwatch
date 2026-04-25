@@ -125,6 +125,7 @@ Post-ingest hooks run synchronously after each span is written to DB:
 | `ocw stop` | `cmd_stop.py` | Stop background daemon or ocw serve process |
 | `ocw budget` | `cmd_budget.py` | Get/set daily and session budget limits per agent or globally |
 | `ocw drift` | `cmd_drift.py` | Show drift baselines and Z-scores for recent sessions |
+| `ocw demo [scenario]` | `cmd_demo.py` | Run Agent Incident Library scenarios (zero-config, no API keys). `ocw demo` lists all; `ocw demo retry-loop` runs one |
 | `ocw mcp` | `cmd_mcp.py` | Start the stdio MCP server for Claude Code integration |
 | `ocw uninstall` | `cmd_uninstall.py` | Remove all OCW data, config, and daemon |
 | `ocw doctor` | `cmd_doctor.py` | Health checks (config, DB, secrets, webhooks). Exit 0/1/2 |
