@@ -194,6 +194,8 @@ def _onboard_claude_code(
         config_path.parent.mkdir(parents=True, exist_ok=True)
         write_config(config, config_path)
         console.print(f"  ocw config written to: {config_path}")
+        if _sync_secret_to_codex(ingest_secret):
+            console.print("  Codex config updated to match new ingest secret.")
 
     # --- Register MCP server with Claude Code ---
     if shutil.which("claude"):
@@ -389,6 +391,8 @@ def _onboard_codex(
         config_path.parent.mkdir(parents=True, exist_ok=True)
         write_config(config, config_path)
         console.print(f"  ocw config written to: {config_path}")
+        if _sync_secret_to_claude_code(ingest_secret):
+            console.print("  Claude Code config updated to match new ingest secret.")
 
     port = config.api.port
     secret = config.security.ingest_secret
@@ -408,9 +412,11 @@ def _onboard_codex(
         except Exception:
             pass
 
-    if "otel" in existing_codex and not force:
+    already_has_otel = "otel" in existing_codex
+    already_has_mcp = bool(existing_codex.get("mcp_servers", {}).get("ocw"))
+    if already_has_otel and already_has_mcp and not force:
         console.print(
-            "[yellow]~/.codex/config.toml already has an [otel] section.[/yellow]"
+            "[yellow]~/.codex/config.toml already has [otel] and [mcp_servers.ocw] sections.[/yellow]"
         )
         console.print("Use [bold]--force[/bold] to overwrite, or add manually:")
         console.print()
@@ -426,7 +432,7 @@ def _onboard_codex(
         # Fully wipe previous OTEL sections so nested tables don't duplicate.
         base_content = _codex_strip_otel_sections(base_content)
     new_content = _codex_apply_block(
-        base_content, r"\[otel\]", "otel" in existing_codex, otel_block, force,
+        base_content, r"\[otel\]", already_has_otel, otel_block, force,
     )
     # Re-parse after the otel update so section detection is accurate.
     try:
@@ -597,6 +603,44 @@ def _print_codex_otel_block(port: int, secret: str, agent_id: str = "codex_exec"
     for line in block.splitlines():
         console.print(f"[dim]  {line}[/dim]")
     console.print()
+
+
+def _sync_secret_to_codex(secret: str) -> bool:
+    """Update Authorization header in ~/.codex/config.toml if an [otel] section exists."""
+    import re as _re
+    codex_path = Path.home() / ".codex" / "config.toml"
+    if not codex_path.exists():
+        return False
+    content = codex_path.read_text()
+    if "Authorization" not in content:
+        return False
+    updated = _re.sub(
+        r'(Authorization\s*=\s*"Bearer\s+)[^"]+(")',
+        rf'\g<1>{secret}\g<2>',
+        content,
+    )
+    if updated == content:
+        return False
+    codex_path.write_text(updated)
+    return True
+
+
+def _sync_secret_to_claude_code(secret: str) -> bool:
+    """Update OTLP Authorization header in ~/.claude/settings.json if present."""
+    settings_path = Path.home() / ".claude" / "settings.json"
+    if not settings_path.exists():
+        return False
+    try:
+        settings = json_mod.loads(settings_path.read_text())
+    except (json_mod.JSONDecodeError, OSError):
+        return False
+    env = settings.get("env", {})
+    if "Authorization=Bearer" not in env.get("OTEL_EXPORTER_OTLP_HEADERS", ""):
+        return False
+    env["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Bearer {secret}"
+    settings["env"] = env
+    settings_path.write_text(json_mod.dumps(settings, indent=2) + "\n")
+    return True
 
 
 def _derive_project_name() -> str:

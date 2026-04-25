@@ -11,6 +11,7 @@
 :root {
   --bg: #070d1a;
   --surface: #0f1729;
+  --surface2: #1a2840;
   --border: #1e2d4a;
   --text: #e2e8f0;
   --text-dim: #64748b;
@@ -181,19 +182,22 @@ code, .mono {
 .info-btn .info-tip {
   display: none;
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface2);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid #2e4a70;
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 7px 10px;
   font-size: 11px;
+  line-height: 1.5;
   font-family: 'IBM Plex Mono', monospace;
-  white-space: nowrap;
-  z-index: 10;
+  white-space: normal;
+  max-width: 260px;
+  z-index: 100;
   pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 .info-btn:hover .info-tip { display: block; }
 
@@ -602,7 +606,7 @@ function StatusView() {
             ${a.agent_id}
             <span class="badge badge-${a.status}" style="margin-left:auto">${a.status}</span>
           </div>
-          <div class="card-row"><span class="label">Cost today</span><span class="value">${fmtCost(a.cost_today)}</span></div>
+          <div class="card-row"><span class="label">Cost today <span class="info-btn">i<span class="info-tip">Estimated from token usage. If you're on a subscription plan (e.g. Claude Max), your actual spend may differ.</span></span></span><span class="value">${fmtCost(a.cost_today)}</span></div>
           <div class="card-row"><span class="label">Tokens</span><span class="value">${fmtTokens(a.input_tokens)} in / ${fmtTokens(a.output_tokens)} out</span></div>
           <div class="card-row"><span class="label">Tool calls</span><span class="value">${a.tool_call_count}${a.error_count ? ' (' + a.error_count + ' failed)' : ''}</span></div>
           ${a.duration_seconds != null ? html`<div class="card-row"><span class="label">Duration</span><span class="value">${fmtDur(a.duration_seconds * 1000)}</span></div>` : null}
@@ -670,7 +674,7 @@ function TracesListView() {
     </div>
     ${traces.length === 0 ? html`<div class="empty">No traces yet. Run an agent with ${'`@watch()`'} to start recording.</div>` : html`
       <div class="table-wrap"><table>
-        <thead><tr><th>Agent</th><th>Type</th><th>Time</th><th>Duration</th><th>Cost</th><th>Result <span class="info-btn">i<span class="info-tip">Shows "error" if even a single span in this trace failed</span></span></th><th>Status <span class="info-btn">i<span class="info-tip">Agent liveness: active (seen in last 5 min), stale (no recent spans), completed or idle</span></span></th><th>Spans</th><th></th></tr></thead>
+        <thead><tr><th>Agent</th><th>Type</th><th>Time</th><th>Duration</th><th>Cost <span class="info-btn">i<span class="info-tip">Estimated from token usage. If you're on a subscription plan (e.g. Claude Max), your actual spend may differ.</span></span></th><th>Result <span class="info-btn">i<span class="info-tip">Shows "error" if even a single span in this trace failed</span></span></th><th>Status <span class="info-btn">i<span class="info-tip">Agent liveness: active (seen in last 5 min), stale (no recent spans), completed or idle</span></span></th><th>Spans</th><th></th></tr></thead>
         <tbody>
           ${dedup(traces).map(t => {
             const st = agentStatus[t.agent_id];
@@ -857,7 +861,7 @@ function CostView() {
       <button class="btn" onClick=${load}>Refresh</button>
     </div>
     <div class="summary">
-      <div class="summary-item"><div class="summary-label">Total cost</div><div class="summary-value" style="color:var(--accent)">${fmtCost(total)}</div></div>
+      <div class="summary-item"><div class="summary-label">Total cost <span class="info-btn">i<span class="info-tip">Estimated from token usage. If you're on a subscription plan (e.g. Claude Max), your actual spend may differ.</span></span></div><div class="summary-value" style="color:var(--accent)">${fmtCost(total)}</div></div>
       <div class="summary-item"><div class="summary-label">Input tokens</div><div class="summary-value">${fmtTokens(totalIn)}</div></div>
       <div class="summary-item"><div class="summary-label">Output tokens</div><div class="summary-value">${fmtTokens(totalOut)}</div></div>
     </div>
@@ -867,7 +871,7 @@ function CostView() {
           <th>${groupBy === 'day' ? 'Date' : groupBy === 'agent' ? 'Agent' : groupBy === 'model' ? 'Model' : 'Tool'}</th>
           ${groupBy !== 'agent' ? html`<th>Agent</th>` : null}
           ${groupBy !== 'model' ? html`<th>Model</th>` : null}
-          <th>Input</th><th>Output</th><th>Cost</th>
+          <th>Input</th><th>Output</th><th>Cost <span class="info-btn">i<span class="info-tip">Estimated from token usage. If you're on a subscription plan (e.g. Claude Max), your actual spend may differ.</span></span></th>
         </tr></thead>
         <tbody>
           ${rows.map(r => html`
