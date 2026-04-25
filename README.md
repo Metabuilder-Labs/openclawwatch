@@ -264,25 +264,24 @@ Claude calls `setup_project`, which writes `.claude/settings.json` with the righ
 
 ### Codex
 
-Monitor every Codex session with two commands:
+Monitor every Codex session — run once, globally:
 
 ```bash
 pip install "openclawwatch[mcp]"
 ocw onboard --codex
 ```
 
-Run from your project directory. `ocw onboard --codex`:
+`ocw onboard --codex` is project-agnostic. It writes to `~/.codex/config.toml` (Codex's single global config), so you only run it once — not once per project. Codex hardcodes `service.name="codex_exec"` in its binary, so all sessions appear under the same agent ID regardless of which repo you're working in.
+
+`ocw onboard --codex`:
 - Writes an `[otel]` block and `[mcp_servers.ocw]` to `~/.codex/config.toml`
-- Tags the project as `codex-<repo-name>` via `service.name` in that config
 - Registers the MCP server so Codex can call OCW tools directly
 - Installs the background daemon (launchd / systemd)
 
 **Codex must be restarted** after running `ocw onboard --codex`.
 
-Unlike Claude Code, Codex has no per-project settings file — the `service.name` tag lives in the global `~/.codex/config.toml`. If you have multiple projects, run `ocw onboard --codex --force` from each project directory to retag.
-
 ```bash
-ocw status --agent codex-<project>   # check it's working
+ocw status --agent codex_exec   # check it's working
 ```
 
 The same 13 MCP tools available to Claude Code are available to Codex after restart.
