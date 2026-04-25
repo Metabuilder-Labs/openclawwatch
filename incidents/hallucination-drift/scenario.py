@@ -169,7 +169,7 @@ def _render(console, result) -> None:
         "[bold]The anomalous session had:[/bold]\n"
         "  Input tokens: 50,000 vs baseline ~1,000 (Z-score: inf)\n"
         "  Tool sequence: 5 new tools never seen in baseline\n\n"
-        "[dim]Run:[/dim]\n"
+        "[dim]In your real agent:[/dim]\n"
         "  ocw drift               [dim]# Z-scores and baseline stats[/dim]\n"
         "  ocw alerts              [dim]# see the drift_detected alert[/dim]"
     )

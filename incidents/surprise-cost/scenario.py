@@ -147,7 +147,7 @@ def _render(console, result, model_breakdown) -> None:
     tmp = RichConsole(file=buf, highlight=False)
     tmp.print(table)
     tmp.print(Text(f"Total session cost: ${result.total_cost_usd:.4f}", style="bold red"))
-    tmp.print("\n[dim]Run:[/dim]")
+    tmp.print("\n[dim]In your real agent:[/dim]")
     tmp.print("  ocw cost --by model    [dim]# per-model spend[/dim]")
     tmp.print("  ocw cost               [dim]# daily breakdown[/dim]")
 

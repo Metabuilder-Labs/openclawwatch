@@ -185,7 +185,7 @@ See the **[full configuration reference](docs/configuration.md)** for all option
 
 ## CLI reference
 
-15 commands: `onboard`, `doctor`, `status`, `traces`, `cost`, `alerts`, `budget`, `drift`, `tools`, `export`, `mcp`, `serve`, `stop`, `uninstall`. All support `--json` for machine-readable output.
+16 commands: `onboard`, `doctor`, `status`, `traces`, `cost`, `alerts`, `budget`, `drift`, `tools`, `demo`, `export`, `mcp`, `serve`, `stop`, `uninstall`. All support `--json` for machine-readable output.
 
 See the **[full CLI reference](docs/cli-reference.md)** for all commands, flags, and examples.
 
@@ -196,6 +196,26 @@ See the **[full CLI reference](docs/cli-reference.md)** for all commands, flags,
 Runnable agents for every supported integration — single provider, single framework, multi-integration, and alerts/drift demos (no API keys needed).
 
 See the **[full examples guide](docs/examples.md)** for the complete list with env vars and setup notes.
+
+---
+
+## Agent Incident Library
+
+Reproducible AI agent failures you can run in 30 seconds. No API keys, no config, no setup.
+
+```bash
+ocw demo                     # list all scenarios
+ocw demo retry-loop          # run one
+ocw demo retry-loop --json   # machine-readable output
+```
+
+| Scenario | What goes wrong | What OCW catches |
+|---|---|---|
+| [`retry-loop`](incidents/retry-loop/README.md) | Agent retries a failing tool in a loop, burning time and tokens | `retry_loop` + `failure_rate` alerts fire automatically |
+| [`surprise-cost`](incidents/surprise-cost/README.md) | Model silently escalates from Haiku to Opus mid-chain | Per-model cost breakdown shows the $3+ you didn't expect |
+| [`hallucination-drift`](incidents/hallucination-drift/README.md) | Agent behavior shifts — different tokens, different tools | `drift_detected` alert fires with Z-scores at session end |
+
+Each scenario runs against an in-memory backend and produces a side-by-side comparison: what `print()` shows vs. what OCW reveals.
 
 ---
 

@@ -126,7 +126,7 @@ def _render(console, result) -> None:
         f"[bold]Spans ingested:[/bold] {result.span_count}\n"
         f"[bold]Traces:[/bold] {result.trace_count}\n\n"
         f"[bold]Alerts fired:[/bold]\n{alert_str}\n\n"
-        "[dim]Run:[/dim]\n"
+        "[dim]In your real agent:[/dim]\n"
         "  ocw alerts          [dim]# see the retry_loop alert[/dim]\n"
         "  ocw traces          [dim]# see the loop pattern[/dim]"
     )

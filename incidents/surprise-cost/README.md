@@ -1,19 +1,26 @@
 # Why did my agent just spend $47 on a hello world?
 
-**Incident type:** Surprise cost / model escalation  
 **Run it:** `pip install openclawwatch && ocw demo surprise-cost`
 
-## The horror story
+---
 
-Your document analysis agent is supposed to use Claude Haiku — cheap, fast, good enough for extraction. You set it up, test it on a small document, it costs $0.003. Ship it.
+## The invisible upgrade
 
-A week later your billing alert fires. $47 for a single session. You stare at your code. You check the model parameter. It says `claude-haiku-4-5`. Everything looks fine.
+You built a document analysis agent on Claude Haiku. Cheap, fast, good enough. You tested it. $0.003 per run. Shipped it.
 
-Except your agent chains through multiple steps, and somewhere in that chain — maybe a LangChain callback, maybe a fallback handler, maybe just a configuration override — it silently escalated to Opus for "complex" sub-tasks. Each Haiku call is $0.003. Each Opus call is $1.35. You had 35 of them.
+A week later, your billing dashboard says $47 for a single session.
 
-You never saw it happen. Your print statements said "response received."
+You check the code. The model parameter says `claude-haiku-4-5`. You check again. Still Haiku. You add a print statement:
 
-## What print() shows
+```
+[llm] Response received (200 OK)
+[llm] Response received (200 OK)
+[llm] Response received (200 OK)
+```
+
+Eight responses. All 200. Nothing wrong. Except three of those calls weren't Haiku. Somewhere in your chain — a fallback handler, a LangChain router, a config override you forgot about — the model silently escalated to Opus. Haiku costs fractions of a cent. Opus costs dollars. And nobody told you.
+
+## What you see with print()
 
 ```
 [agent] Starting document analysis...
@@ -28,27 +35,42 @@ You never saw it happen. Your print statements said "response received."
 [agent] Task complete.
 ```
 
-Eight successful responses. No errors. No indication that 3 of those calls just cost 100x what you expected.
+Eight successes. No errors. Nothing to investigate.
 
-## What OCW reveals
+## What you see with OCW
 
 ```
-$ ocw demo surprise-cost
+ Model               Calls   Cost (USD)
+────────────────────────────────────────
+ claude-opus-4-6         3      $3.2325
+ claude-sonnet-4-6       3      $0.2775
+ claude-haiku-4-5        2      $0.0092
 
-$ ocw cost --by model
-Model                  Calls    Cost (USD)
-claude-haiku-4-5           2       $0.0140
-claude-sonnet-4-6          3       $0.1875
-claude-opus-4-6            3       $2.2125
-──────────────────────────────────────────
-Total                      8       $2.4140
-
-$ ocw cost
-Date          Agent                  Cost
-2026-04-25    demo-surprise-cost    $2.41
+Total session cost: $3.5192
 ```
 
-OCW tracks cost per call, per model, per agent. The escalation is visible the moment it happens.
+Two Haiku calls: $0.009. Three Opus calls: $3.23. You paid 350x more for Opus than Haiku, in the same session, and `print()` gave you eight identical lines.
+
+OCW records `model`, `input_tokens`, and `output_tokens` on every LLM span. The `CostEngine` prices each call using per-model rates from `pricing/models.toml`. The escalation is visible the moment it happens — not at the end of the month on a bill.
+
+## Set a budget before it happens
+
+Add to `ocw.toml`:
+
+```toml
+[agents.my-agent.budget]
+session_usd = 1.00   # alert if a single session exceeds this
+daily_usd   = 5.00   # alert if daily spend exceeds this
+```
+
+Or set a global default for all agents:
+
+```toml
+[defaults.budget]
+daily_usd = 10.00
+```
+
+OCW fires `cost_budget_session` and `cost_budget_daily` alerts when limits are crossed.
 
 ## Try it yourself
 
@@ -57,29 +79,15 @@ pip install openclawwatch
 ocw demo surprise-cost
 ```
 
-Then inspect:
+Emits 8 synthetic LLM spans with real pricing math. No API keys, no model calls, no network traffic.
 
-```bash
-ocw cost --by model   # per-model spend breakdown
-ocw cost              # daily cost summary
-ocw traces            # see which calls used which model
-```
+To track real spend, instrument your agent with the OCW SDK and run `ocw serve`. Then `ocw cost --by model` shows live per-model attribution.
 
-## Prevent it
+## Next in the incident library
 
-Set a session budget in `ocw.toml`:
+- [Your agent isn't flaky. You're blind.](../retry-loop/README.md)
+- [My agent worked yesterday. Today it's possessed.](../hallucination-drift/README.md)
 
-```toml
-[[agents]]
-id = "my-agent"
+---
 
-[agents.budget]
-session_usd = 1.00   # fires COST_BUDGET_SESSION alert if exceeded
-daily_usd = 5.00     # fires COST_BUDGET_DAILY alert if exceeded
-```
-
-## What OCW is
-
-OCW is a local-first, zero-signup observability CLI for AI agents. It captures telemetry from your agent, stores it in a local DuckDB database, and gives you CLI commands to understand what actually happened.
-
-**→ [github.com/Metabuilder-Labs/openclawwatch](https://github.com/Metabuilder-Labs/openclawwatch)**
+[OCW](https://github.com/Metabuilder-Labs/openclawwatch) is a local-first, zero-signup observability CLI for AI agents. No cloud. No account. Just `pip install openclawwatch` and start seeing what your agent actually does.

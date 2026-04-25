@@ -1,17 +1,27 @@
 # Your agent isn't flaky. You're blind.
 
-**Incident type:** Retry loop  
 **Run it:** `pip install openclawwatch && ocw demo retry-loop`
 
-## The horror story
+---
 
-You deployed your agent last Tuesday. It worked fine in testing. By Wednesday afternoon, your users are complaining that it's "slow" and "keeps spinning." You add a print statement. You see "tool called" in your logs, over and over. You refresh. Still spinning. You restart the process. It fixes itself.
+## The bug that isn't a bug
 
-You blame the tool provider. Maybe their API was flaky. You move on.
+Wednesday, 2pm. Users are saying the agent is "slow." You check the logs.
 
-Except it wasn't flaky. Your agent was stuck in a retry loop — calling the same failing tool six times in eight spans, burning tokens and time on each attempt. The tool was returning null (not an error), so your agent never detected a failure state. It just kept asking the same question to a wall.
+```
+[tool] search_knowledge_base called
+[tool] search_knowledge_base returned: null
+[tool] search_knowledge_base called
+[tool] search_knowledge_base returned: null
+```
 
-## What print() shows
+Four times. Five. You restart. It goes away. You blame the API provider, file a mental note, move on.
+
+Here's what actually happened: the tool was returning `null` — not an error, just nothing. Your agent didn't know how to interpret silence, so it asked again. And again. Five identical calls in a row. Each one burned tokens and latency on a question that was never going to get answered.
+
+The logs said "tool called, tool returned." They were right. They just didn't tell you anything useful.
+
+## What you see with print()
 
 ```
 [agent] Starting task...
@@ -26,30 +36,23 @@ Except it wasn't flaky. Your agent was stuck in a retry loop — calling the sam
 [agent] Retrying...
 ```
 
-"Tool called. Tool returned." Technically correct. Completely useless.
+Technically correct. Completely useless.
 
-## What OCW reveals
+## What you see with OCW
 
 ```
-$ ocw demo retry-loop
+Spans ingested: 6
+Traces: 1
 
 Alerts fired:
-  ALERT retry_loop — demo-retry-loop
-
-$ ocw traces
-TRACE  demo-retry-loop  6 spans  [retry_loop alert]
-  gen_ai.invoke_agent
-  gen_ai.tool.call  search_knowledge_base  ERROR  300ms
-  gen_ai.tool.call  search_knowledge_base  ERROR  300ms
-  gen_ai.tool.call  search_knowledge_base  ERROR  300ms
-  gen_ai.tool.call  search_knowledge_base  ERROR  300ms
-  gen_ai.tool.call  search_knowledge_base  ERROR  300ms
-
-$ ocw alerts
-retry_loop  demo-retry-loop  WARNING  search_knowledge_base called 4+ times in 6 spans
+  ALERT failure_rate
+  ALERT retry_loop
+  ALERT retry_loop
 ```
 
-OCW detects when the same tool appears 4 or more times in the last 6 spans and fires a `retry_loop` alert. No configuration required — it's on by default.
+Two rules tripped automatically. `retry_loop` fires when the same tool appears 4+ times in the last 6 spans. `failure_rate` fires when more than 20% of recent spans error out. No configuration. No threshold tuning. On by default.
+
+The loop was visible from span #4. Your logs didn't surface it until a user complained.
 
 ## Try it yourself
 
@@ -58,16 +61,15 @@ pip install openclawwatch
 ocw demo retry-loop
 ```
 
-Then inspect the results:
+30 seconds, no API keys, no config file. The demo runs against an in-memory backend so nothing persists to disk.
 
-```bash
-ocw alerts          # see the retry_loop alert
-ocw traces          # see the loop pattern in the span waterfall
-ocw cost            # see what the loop cost you
-```
+To catch this in your real agent, wire up the OCW SDK (`@watch()` + `patch_anthropic()` or `patch_openai()`) and run `ocw serve` in the background. After that, `ocw alerts` and `ocw traces` work against your live data.
 
-## What OCW is
+## Next in the incident library
 
-OCW is a local-first, zero-signup observability CLI for AI agents. It captures telemetry from your agent, stores it in a local DuckDB database, and gives you CLI commands to understand what actually happened.
+- [Why did my agent just spend $47 on a hello world?](../surprise-cost/README.md)
+- [My agent worked yesterday. Today it's possessed.](../hallucination-drift/README.md)
 
-**→ [github.com/Metabuilder-Labs/openclawwatch](https://github.com/Metabuilder-Labs/openclawwatch)**
+---
+
+[OCW](https://github.com/Metabuilder-Labs/openclawwatch) is a local-first, zero-signup observability CLI for AI agents. No cloud. No account. Just `pip install openclawwatch` and start seeing what your agent actually does.

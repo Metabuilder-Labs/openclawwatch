@@ -1,17 +1,18 @@
 # My agent worked yesterday. Today it's possessed.
 
-**Incident type:** Behavioral drift  
 **Run it:** `pip install openclawwatch && ocw demo hallucination-drift`
 
-## The horror story
+---
 
-Your coding agent has been running reliably for two weeks. Same prompts, same codebase, same everything. Then on Tuesday you notice the outputs are... different. Longer. More verbose. Using different variable naming conventions. Making tool calls you don't recognize in the logs.
+## The failure with no error message
 
-You ask it directly: "Why did you change your approach?" It confidently explains its reasoning. The reasoning sounds plausible. You can't tell if it's drifted or if you're imagining it.
+Your coding agent has been solid for two weeks. Same prompts, same repo, same everything. Then on Tuesday the outputs look... off. Longer. Different variable names. Tool calls you've never seen before.
 
-This is the worst kind of failure — no error, no crash, no alert. Just behavior that used to be one thing and is now something else. You have no baseline to compare against. You have no measurement. You have a feeling.
+You ask the agent why. It explains confidently. The explanation sounds plausible. You can't prove anything is wrong.
 
-## What print() shows
+This is the worst kind of bug. No stack trace. No error. No crash. Just behavior that used to be one thing and is now quietly something else. You don't have a baseline. You don't have numbers. You have a feeling, and a feeling is not a measurement.
+
+## What you see with print()
 
 ```
 [agent] Session 1... output looks reasonable
@@ -24,33 +25,37 @@ This is the worst kind of failure — no error, no crash, no alert. Just behavio
 [agent] But hey, it completed successfully. Moving on.
 ```
 
-A feeling is not a measurement.
-
-## What OCW reveals
+## What you see with OCW
 
 ```
-$ ocw demo hallucination-drift
+Sessions: 5 baseline + 1 anomalous
+Spans ingested: 33
 
 Alerts fired:
-  ALERT drift_detected — demo-hallucination-drift
+  ALERT drift_detected
 
-$ ocw drift
-Agent: demo-hallucination-drift
-Baseline: 5 sessions sampled
-
-Dimension          Expected    Observed    Z-Score
-─────────────────────────────────────────────────
-input_tokens       1,000       50,000      ∞ (stddev=0)
-output_tokens      200         10,000      ∞ (stddev=0)
-tool_sequence      [search, summarize]  [fetch_url, parse_html, ...]  Jaccard=0.0
-
-$ ocw alerts
-drift_detected  WARNING  demo-hallucination-drift
-  input_tokens: expected ~1000, observed 50000 (Z=inf)
-  tool_sequence: Jaccard similarity 0.0 (threshold 0.4)
+The anomalous session had:
+  Input tokens: 50,000 vs baseline ~1,000 (Z-score: inf)
+  Tool sequence: 5 new tools never seen in baseline
 ```
 
-OCW builds a statistical baseline from your agent's first N sessions. When a new session deviates significantly — by Z-score on token counts, or Jaccard distance on tool sequences — it fires a `drift_detected` alert at session end.
+Five sessions averaged 1,000 input tokens with tools `[search, summarize]`. Session 6 came in with 50,000 tokens and tools `[fetch_url, parse_html, extract_entities, classify, store_results]`. Every metric was off the chart. OCW fired `drift_detected` the moment the session closed.
+
+The `DriftDetector` builds a rolling baseline from prior sessions. When a new session's token counts exceed a Z-score of 2.0, or the tool sequence Jaccard distance exceeds 0.4 — it fires. You find out in seconds, not after a week of "huh, that output seemed weird."
+
+## Enable drift detection
+
+In `ocw.toml`:
+
+```toml
+[agents.my-agent.drift]
+enabled            = true
+baseline_sessions  = 10    # how many sessions to learn from
+token_threshold    = 2.0   # Z-score to trigger on
+tool_sequence_diff = 0.4   # Jaccard distance to trigger on
+```
+
+The demo uses `baseline_sessions = 5` for speed. In production, 10–50 sessions gives a more stable baseline so normal variance doesn't get flagged.
 
 ## Try it yourself
 
@@ -59,31 +64,15 @@ pip install openclawwatch
 ocw demo hallucination-drift
 ```
 
-Then inspect:
+Runs entirely in-process. No API keys, no real model calls, no network traffic.
 
-```bash
-ocw drift           # Z-scores and baseline stats
-ocw alerts          # see the drift_detected alert
-ocw traces          # compare sessions visually
-```
+To track drift on your real agent, wire up the OCW SDK, enable drift in `ocw.toml`, and run `ocw serve`. Then `ocw drift` shows Z-scores; `ocw alerts` shows the events.
 
-## Enable drift detection
+## Next in the incident library
 
-In `ocw.toml`:
+- [Your agent isn't flaky. You're blind.](../retry-loop/README.md)
+- [Why did my agent just spend $47 on a hello world?](../surprise-cost/README.md)
 
-```toml
-[[agents]]
-id = "my-agent"
+---
 
-[agents.drift]
-enabled = true
-baseline_sessions = 10   # sessions before baseline is computed
-token_threshold = 2.0    # Z-score threshold for token anomalies
-tool_sequence_diff = 0.4 # Jaccard distance threshold for tool sequences
-```
-
-## What OCW is
-
-OCW is a local-first, zero-signup observability CLI for AI agents. It captures telemetry from your agent, stores it in a local DuckDB database, and gives you CLI commands to understand what actually happened.
-
-**→ [github.com/Metabuilder-Labs/openclawwatch](https://github.com/Metabuilder-Labs/openclawwatch)**
+[OCW](https://github.com/Metabuilder-Labs/openclawwatch) is a local-first, zero-signup observability CLI for AI agents. No cloud. No account. Just `pip install openclawwatch` and start seeing what your agent actually does.
