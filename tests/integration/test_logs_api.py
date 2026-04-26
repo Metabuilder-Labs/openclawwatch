@@ -86,14 +86,17 @@ async def test_post_logs_invalid_json_returns_400(client):
 
 
 @pytest.mark.asyncio
-async def test_post_logs_missing_resource_logs_returns_400(client):
+async def test_post_logs_non_log_payload_returns_200_empty(client):
+    # Non-log OTLP signals (e.g. resourceSpans, resourceMetrics) that land on
+    # /v1/logs are silently ignored — 200 with 0 ingested — so SDK exporters
+    # that reuse this endpoint for all signal types don't produce 400 noise.
     resp = await client.post(
         "/v1/logs",
-        json={"wrong_key": []},
+        json={"resourceSpans": []},
         headers=_auth_headers(),
     )
-    assert resp.status_code == 400
-    assert "resourceLogs" in resp.json()["error"]
+    assert resp.status_code == 200
+    assert resp.json()["ingested"] == 0
 
 
 @pytest.mark.asyncio
