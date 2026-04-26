@@ -26,7 +26,13 @@ def init(ro_conn, config, serve_url: str | None = None) -> None:
 
 
 def _no_config() -> dict:
-    return {"error": "No OCW config found. Run 'ocw onboard --claude-code' to set up."}
+    return {
+        "error": (
+            "No OCW config found. "
+            "Run 'ocw onboard --claude-code' (Claude Code) "
+            "or 'ocw onboard --codex' (Codex CLI) to set up."
+        )
+    }
 
 
 def _http_get(path: str, params: dict | None = None) -> dict:
@@ -1029,9 +1035,10 @@ def acknowledge_alert(alert_id: str) -> dict:
 def setup_project(agent_id: str | None = None, project_path: str | None = None) -> dict:
     """
     Configure the current project to send telemetry to OCW. Writes OTEL_RESOURCE_ATTRIBUTES
-    into .claude/settings.json so Claude Code tags spans with the right agent ID. Use this
-    when the user wants to start monitoring a new project, or asks how to set up OCW for
-    this repo. Infers agent_id from the git remote if not provided.
+    into .claude/settings.json so Claude Code tags spans with the right agent ID. For Codex
+    CLI users the agent ID is set in ~/.codex/config.toml via 'ocw onboard --codex'. Use
+    this when the user wants to start monitoring a new project, or asks how to set up OCW
+    for this repo. Infers agent_id from the git remote if not provided.
     """
     try:
         from ocw.core.config import find_config_file

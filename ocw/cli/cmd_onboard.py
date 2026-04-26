@@ -17,6 +17,8 @@ from ocw.utils.formatting import console
 @click.command("onboard")
 @click.option("--claude-code", "claude_code", is_flag=True, default=False,
               help="Configure Claude Code telemetry to flow into ocw")
+@click.option("--codex", "codex", is_flag=True, default=False,
+              help="Configure Codex CLI telemetry to flow into ocw")
 @click.option("--budget", type=float, default=None,
               help="Daily budget in USD per agent (0 = no limit)")
 @click.option("--install-daemon", "install_daemon", is_flag=True, default=False,
@@ -25,11 +27,14 @@ from ocw.utils.formatting import console
               help="Skip background daemon installation")
 @click.option("--force", is_flag=True, help="Overwrite existing config")
 @click.pass_context
-def cmd_onboard(ctx: click.Context, claude_code: bool, budget: float | None,
+def cmd_onboard(ctx: click.Context, claude_code: bool, codex: bool, budget: float | None,
                 install_daemon: bool, no_daemon: bool, force: bool) -> None:
     """Interactive setup wizard for ocw."""
     if claude_code:
         _onboard_claude_code(ctx, budget, no_daemon, force)
+        return
+    if codex:
+        _onboard_codex(ctx, budget, no_daemon, force)
         return
     existing = find_config_file()
     if existing and not force:
@@ -189,6 +194,8 @@ def _onboard_claude_code(
         config_path.parent.mkdir(parents=True, exist_ok=True)
         write_config(config, config_path)
         console.print(f"  ocw config written to: {config_path}")
+        if _sync_secret_to_codex(ingest_secret):
+            console.print("  Codex config updated to match new ingest secret.")
 
     # --- Register MCP server with Claude Code ---
     if shutil.which("claude"):
@@ -307,6 +314,333 @@ def _onboard_claude_code(
         console.print("[dim]Start the server:[/dim]  ocw serve")
     console.print("[dim]Restart Claude Code for settings to take effect.[/dim]")
     console.print(f"[dim]Then run:[/dim]  ocw status --agent {agent_id}")
+
+
+def _onboard_codex(
+    ctx: click.Context,
+    budget: float | None,
+    no_daemon: bool,
+    force: bool,
+) -> None:
+    """Configure Codex CLI to send telemetry to ocw."""
+    try:
+        import tomllib  # type: ignore[import]
+    except ImportError:
+        import tomli as tomllib  # type: ignore[no-redef]
+
+    from ocw.core.config import (
+        AgentConfig, BudgetConfig, OcwConfig, SecurityConfig,
+        find_config_file, load_config, write_config,
+    )
+
+    # Codex hardcodes service.name="codex_exec" in its binary regardless of
+    # what [otel.resource] says, so all Codex traces land under "codex_exec".
+    agent_id = "codex_exec"
+
+    if budget is None:
+        budget = click.prompt(
+            "Daily budget in USD (0 = no limit, default 0)",
+            type=float, default=0.0, show_default=False,
+        )
+
+    # Prefer the running server's config over CWD discovery — otherwise the
+    # secret written to Codex mismatches when onboard runs from a different
+    # project than where `ocw serve` was started.
+    import json as _json
+    _state_path = Path.home() / ".local" / "share" / "ocw" / "server.state"
+    config_path: Path | None = None
+    if _state_path.exists():
+        try:
+            _state = _json.loads(_state_path.read_text())
+            _cp = _state.get("config_path")
+            if _cp and Path(_cp).exists():
+                config_path = Path(_cp)
+        except Exception:
+            pass
+    if config_path is None:
+        existing_path = find_config_file()
+        fallback_path = Path.home() / ".config" / "ocw" / "config.toml"
+        config_path = existing_path if existing_path is not None else fallback_path
+    assert config_path is not None  # fallback_path is always set
+
+    previous_secret: str | None = None
+    if config_path.exists():
+        try:
+            prev_cfg = load_config(str(config_path))
+            previous_secret = prev_cfg.security.ingest_secret
+        except Exception:
+            previous_secret = None
+
+    if config_path.exists():
+        config = load_config(str(config_path))
+        if agent_id not in config.agents:
+            config.agents[agent_id] = AgentConfig()
+        if budget and budget > 0:
+            config.agents[agent_id].budget.daily_usd = budget
+        write_config(config, config_path)
+        console.print(f"  ocw config updated: {config_path}")
+    else:
+        ingest_secret = secrets.token_hex(32)
+        daily_usd = budget if budget and budget > 0 else None
+        agents = {agent_id: AgentConfig(budget=BudgetConfig(daily_usd=daily_usd))}
+        config = OcwConfig(
+            version="1",
+            agents=agents,
+            security=SecurityConfig(ingest_secret=ingest_secret),
+        )
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        write_config(config, config_path)
+        console.print(f"  ocw config written to: {config_path}")
+        if _sync_secret_to_claude_code(ingest_secret):
+            console.print("  Claude Code config updated to match new ingest secret.")
+
+    port = config.api.port
+    secret = config.security.ingest_secret
+    secret_rotated = bool(previous_secret) and previous_secret != secret
+
+    # --- Write Codex CLI OTel config (~/.codex/config.toml) ---
+    codex_config_path = Path.home() / ".codex" / "config.toml"
+    codex_config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing_content = codex_config_path.read_text() if codex_config_path.exists() else ""
+
+    # Check whether an [otel] section already exists
+    existing_codex: dict = {}
+    if existing_content:
+        try:
+            existing_codex = tomllib.loads(existing_content)
+        except Exception:
+            pass
+
+    already_has_otel = "otel" in existing_codex
+    already_has_mcp = bool(existing_codex.get("mcp_servers", {}).get("ocw"))
+    if already_has_otel and already_has_mcp and not force:
+        console.print(
+            "[yellow]~/.codex/config.toml already has [otel] and [mcp_servers.ocw] sections.[/yellow]"
+        )
+        console.print("Use [bold]--force[/bold] to overwrite, or add manually:")
+        console.print()
+        _print_codex_otel_block(port, secret, agent_id)
+        return
+
+    otel_block = _codex_otel_toml_block(port, secret, agent_id)
+    mcp_block = _codex_mcp_toml_block()
+
+    # Build the new file content by replacing/appending each managed section.
+    base_content = existing_content
+    if force:
+        # Fully wipe previous OTEL sections so nested tables don't duplicate.
+        base_content = _codex_strip_otel_sections(base_content)
+    new_content = _codex_apply_block(
+        base_content, r"\[otel\]", already_has_otel, otel_block, force,
+    )
+    # Re-parse after the otel update so section detection is accurate.
+    try:
+        existing_after_otel = tomllib.loads(new_content)
+    except Exception:
+        existing_after_otel = existing_codex
+    existing_mcp = existing_after_otel.get("mcp_servers", {}).get("ocw")
+    new_content = _codex_apply_block(
+        new_content,
+        r"\[mcp_servers\.ocw\]",
+        bool(existing_mcp),
+        mcp_block,
+        force,
+    )
+    codex_config_path.write_text(new_content)
+
+    # --- Try registering via the Codex CLI as well (best-effort) ---
+    if shutil.which("codex"):
+        subprocess.run(
+            ["codex", "mcp", "add", "ocw", "--", "ocw", "mcp"],
+            capture_output=True,
+        )
+
+    # --- If ingest secret rotated, restart running server first ---
+    restart_msg: str | None = None
+    if secret_rotated:
+        restart_msg = _restart_ocw_server_for_secret_rotation(
+            str(config_path.resolve()), no_daemon=no_daemon
+        )
+
+    # --- Install daemon if requested ---
+    want_daemon = not no_daemon
+    if want_daemon and not secret_rotated:
+        console.print("  Daemon:              auto-installing (use --no-daemon to skip)")
+        _install_daemon(str(config_path.resolve()))
+
+    console.print()
+    console.print("[bold green]Codex CLI observability configured.[/bold green]")
+    console.print(f"  Codex config:        {codex_config_path}")
+    console.print(f"  OCW config:          {config_path}")
+    if budget and budget > 0:
+        console.print(f"  Daily budget:        ${budget:.2f}")
+    console.print(f"  OTLP endpoint:       http://127.0.0.1:{port}/v1/logs")
+    if secret:
+        console.print(f"  Ingest secret:       {secret[:8]}...")
+    console.print("  MCP server:          ocw mcp (registered in Codex config)")
+    if restart_msg:
+        console.print(f"  Server restart:      {restart_msg}")
+    console.print()
+    if not want_daemon:
+        console.print("[dim]Start the server:[/dim]  ocw serve")
+    console.print(
+        "[dim]Codex can now call OCW tools (open_dashboard, get_status, etc.) directly.[/dim]"
+    )
+    console.print("[dim]Then run:[/dim]  ocw traces")
+
+
+def _restart_ocw_server_for_secret_rotation(config_path: str, no_daemon: bool) -> str:
+    """Restart running ocw serve to pick up a rotated ingest secret.
+
+    We stop first to ensure any manually-started server process with stale config
+    is terminated, then (when daemon mode is enabled) start it again.
+    """
+    stopped = False
+    try:
+        # Best-effort: stop launchd/systemd daemon or background serve process.
+        stop_result = subprocess.run(
+            ["ocw", "stop"], capture_output=True, text=True, timeout=10
+        )
+        stopped = stop_result.returncode == 0
+    except Exception:
+        stopped = False
+
+    if no_daemon:
+        if stopped:
+            return "stopped stale server; run `ocw serve` to start with new secret"
+        return "could not auto-restart in --no-daemon mode; run `ocw serve` manually"
+
+    daemon_msg = _install_daemon(config_path)
+    if daemon_msg:
+        return "restarted to pick up new ingest secret"
+    if stopped:
+        return "stopped stale server; please run `ocw serve` manually"
+    return "restart attempted; verify with `ocw status`"
+
+
+def _codex_mcp_toml_block() -> str:
+    """Return the [mcp_servers.ocw] TOML block for ~/.codex/config.toml."""
+    return (
+        "[mcp_servers.ocw]\n"
+        "# Managed by ocw — gives Codex access to OCW observability tools\n"
+        'command = "ocw"\n'
+        'args = ["mcp"]\n'
+    )
+
+
+def _codex_apply_block(
+    content: str,
+    section_pattern: str,
+    section_exists: bool,
+    block: str,
+    force: bool,
+) -> str:
+    """Replace or append a TOML section identified by *section_pattern* (regex).
+
+    If the section is absent, the block is appended.
+    If the section exists and *force* is True, it is replaced.
+    If the section exists and *force* is False, the content is unchanged.
+    """
+    import re as _re
+
+    if section_exists:
+        if not force:
+            return content
+        # Replace from the section header to the next section header or EOF.
+        stripped = _re.sub(
+            section_pattern + r".*?(?=\n\[|\Z)",
+            "",
+            content,
+            flags=_re.DOTALL,
+        ).rstrip()
+        return (stripped + "\n\n" + block) if stripped else block
+    # Section absent — append.
+    return (content.rstrip() + "\n\n" + block) if content.strip() else block
+
+
+def _codex_strip_otel_sections(content: str) -> str:
+    """Remove all [otel] sections (including nested exporter/resource tables)."""
+    import re as _re
+
+    patterns = (
+        r"\[otel\].*?(?=\n\[|\Z)",
+        r"\[otel\.resource\].*?(?=\n\[|\Z)",
+        r"\[otel\.exporter\.\"otlp-http\"\].*?(?=\n\[|\Z)",
+        r"\[otel\.exporter\.\"otlp-http\"\.headers\].*?(?=\n\[|\Z)",
+        r"\[otel\.exporter\.\"otlp-grpc\"\].*?(?=\n\[|\Z)",
+        r"\[otel\.exporter\.\"otlp-grpc\"\.headers\].*?(?=\n\[|\Z)",
+    )
+    stripped = content
+    for pat in patterns:
+        stripped = _re.sub(pat, "", stripped, flags=_re.DOTALL)
+    return stripped.strip()
+
+
+def _codex_otel_toml_block(port: int, secret: str, agent_id: str) -> str:
+    """Return the [otel] TOML block to append to ~/.codex/config.toml."""
+    endpoint = f"http://127.0.0.1:{port}/v1/logs"
+    # Note: Codex CLI hardcodes service.name="codex_exec" in the binary and
+    # ignores [otel.resource] entirely, so we don't write a resource block.
+    return (
+        f'[otel]\n'
+        f'# Managed by ocw — do not edit this block manually\n'
+        f'log_user_prompt = false\n'
+        f'\n'
+        f'[otel.exporter."otlp-http"]\n'
+        f'endpoint = "{endpoint}"\n'
+        f'protocol = "json"\n'
+        f'\n'
+        f'[otel.exporter."otlp-http".headers]\n'
+        f'Authorization = "Bearer {secret}"\n'
+    )
+
+
+def _print_codex_otel_block(port: int, secret: str, agent_id: str = "codex_exec") -> None:
+    console.print("[dim]Add this to ~/.codex/config.toml:[/dim]")
+    console.print()
+    block = _codex_otel_toml_block(port, secret, agent_id)
+    for line in block.splitlines():
+        console.print(f"[dim]  {line}[/dim]")
+    console.print()
+
+
+def _sync_secret_to_codex(secret: str) -> bool:
+    """Update Authorization header in ~/.codex/config.toml if an [otel] section exists."""
+    import re as _re
+    codex_path = Path.home() / ".codex" / "config.toml"
+    if not codex_path.exists():
+        return False
+    content = codex_path.read_text()
+    if "Authorization" not in content:
+        return False
+    updated = _re.sub(
+        r'(Authorization\s*=\s*"Bearer\s+)[^"]+(")',
+        rf'\g<1>{secret}\g<2>',
+        content,
+    )
+    if updated == content:
+        return False
+    codex_path.write_text(updated)
+    return True
+
+
+def _sync_secret_to_claude_code(secret: str) -> bool:
+    """Update OTLP Authorization header in ~/.claude/settings.json if present."""
+    settings_path = Path.home() / ".claude" / "settings.json"
+    if not settings_path.exists():
+        return False
+    try:
+        settings = json_mod.loads(settings_path.read_text())
+    except (json_mod.JSONDecodeError, OSError):
+        return False
+    env = settings.get("env", {})
+    if "Authorization=Bearer" not in env.get("OTEL_EXPORTER_OTLP_HEADERS", ""):
+        return False
+    env["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Bearer {secret}"
+    settings["env"] = env
+    settings_path.write_text(json_mod.dumps(settings, indent=2) + "\n")
+    return True
 
 
 def _derive_project_name() -> str:
