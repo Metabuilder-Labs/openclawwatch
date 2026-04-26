@@ -128,7 +128,7 @@ Post-ingest hooks run synchronously after each span is written to DB:
 | `ocw demo [scenario]` | `cmd_demo.py` | Run Agent Incident Library scenarios (zero-config, no API keys). `ocw demo` lists all; `ocw demo retry-loop` runs one |
 | `ocw mcp` | `cmd_mcp.py` | Start the stdio MCP server for Claude Code integration |
 | `ocw uninstall` | `cmd_uninstall.py` | Remove all OCW data, config, and daemon |
-| `ocw doctor` | `cmd_doctor.py` | Health checks (config, DB, secrets, webhooks). Exit 0/1/2 |
+| `ocw doctor` | `cmd_doctor.py` | Health checks (config, DB, secrets, webhooks, drift readiness, schema-vs-capture consistency). Exit 0 = ok, 1 = warnings, 2 = errors |
 
 All commands support `--json` for machine-readable output. Commands that query alerts use exit code 1 if active (unacknowledged, unsuppressed) alerts exist.
 
@@ -172,6 +172,42 @@ When a span has a `conversation_id` matching an existing session, it's attribute
 ## Config
 
 Config is TOML, discovered at: `ocw.toml` -> `.ocw/config.toml` -> `~/.config/ocw/config.toml`. Override with `--config` or `OCW_CONFIG` env var. Full config hierarchy is in `ocw/core/config.py` (`OcwConfig` dataclass).
+
+`ocw onboard --claude-code` and `ocw onboard --codex` always write to the **global** config (`~/.config/ocw/config.toml`) regardless of cwd. This is intentional: each coding-agent integration reads one ingest secret from a single global location (`~/.claude/settings.json` or `~/.codex/config.toml`), and per-project configs would rotate that secret on every onboard, breaking auth for previously onboarded projects. Onboarded Claude Code project paths are tracked in `~/.config/ocw/projects.json` for clean uninstall. Codex onboarding is fully project-agnostic — Codex hardcodes `service.name=codex_exec` in its binary, so there is one Codex agent ID for all projects.
+
+## Daemon (launchd / systemd)
+
+`ocw onboard` (and `ocw onboard --claude-code` / `--codex`) installs a background daemon that runs `ocw serve` on login:
+- **macOS**: `~/Library/LaunchAgents/com.openclawwatch.serve.plist` — loaded via `launchctl load`. Logs at `/tmp/ocw-serve.{out,err}`.
+- **Linux**: `~/.config/systemd/user/openclawwatch.service` — enabled via `systemctl --user enable --now openclawwatch`.
+- **Other**: skipped with a notice; user runs `ocw serve` manually.
+
+Reinstall behavior: `--claude-code` and `--codex` onboard check `_daemon_already_running()` (launchctl list / systemctl is-active) and skip reinstall when the daemon is up unless `--force` is passed. This avoids spurious "Background Items Added" prompts on macOS during second-project onboards. The launchd path always `launchctl unload`s before `load` to handle plist updates idempotently. Use `ocw stop` to halt the daemon, `ocw uninstall` to remove unit files.
+
+`ocw serve` writes its resolved config path to `~/.local/share/ocw/server.state` at startup. Onboarding flows (especially `--codex`) read this file first so the ingest secret they write to the agent's config matches the secret in use by the running server, regardless of which project directory onboard is run from.
+
+## MCP Server
+
+`ocw mcp` starts a FastMCP stdio server for Claude Code integration. The connection mode is chosen at startup by `cmd_mcp.py`:
+1. If `ocw serve` is reachable on `config.api.{host,port}`, MCP proxies to it via HTTP (live ingest visible).
+2. Otherwise it tries to spawn `ocw serve` in the background and waits up to 10s for the port.
+3. If neither works, it falls back to a **read-only DuckDB connection** — read tools still work, but newly ingested spans won't appear until restart.
+4. If no config file is found, `init()` is skipped and tools return a no-config sentinel.
+
+To wire into Claude Code locally: `claude mcp add ocw --scope user -- ocw mcp` (the `--claude-code` and `--codex` onboard flows do this automatically when the `claude` CLI is on PATH; `--codex` also writes `[mcp_servers.ocw]` to `~/.codex/config.toml`).
+
+## Codex CLI Integration
+
+`ocw onboard --codex` writes `[otel]` and `[mcp_servers.ocw]` blocks to `~/.codex/config.toml`. Notes:
+- Codex hardcodes `service.name=codex_exec` in its binary and silently ignores `[otel.resource]`, so onboarding does **not** write that block — all Codex traces land under the `codex_exec` agent ID regardless of project. Onboarding is one-time global, not per-project.
+- Codex emits OTLP **logs** (not spans) to `/v1/logs`. `ocw/api/routes/logs.py` converts Codex events (`sse_event`, `user_prompt`, `tool_decision`, `tool_result`, `api_request`) into normalized spans for cost/drift/alerting. Event name is read from `attrs["event.name"]` when the OTLP body is empty (Codex schema quirk); epoch `timeUnixNano=0` falls back to `attrs["event.timestamp"]` ISO-8601. The `/v1/logs` endpoint also silently accepts `resourceSpans`/`resourceMetrics` because Codex's exporter reuses one endpoint for all signal types.
+- Re-running `ocw onboard --codex` is a no-op only when both `[otel]` and `[mcp_servers.ocw]` are present in `~/.codex/config.toml`. Re-onboarding either Codex or Claude Code cross-syncs the ingest secret into the other's config if it's already configured.
+
+## Examples Convention
+
+Each provider integration in `examples/single_provider/` and each framework in `examples/single_framework/` lives in **its own file** — when adding a new SDK integration, mirror this layout (one demo file per integration) so the examples directory stays a 1:1 map of supported integrations. Multi-provider/framework demos go in `examples/multi/`; alert and drift demos that need no API keys go in `examples/alerts_and_drift/`.
+
+The Agent Incident Library at `incidents/` is separate: each scenario is a `scenario.py` + `README.md` pair, invoked via `ocw demo <scenario>`. Scenarios inject synthetic spans through `ocw/demo/env.py` to simulate real failures (retry-loop, surprise-cost, hallucination-drift) without API keys or a live server.
 
 ## Pricing
 

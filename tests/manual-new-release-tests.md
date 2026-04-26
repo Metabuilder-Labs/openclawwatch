@@ -38,6 +38,7 @@ ocw traces       # should show traces with span waterfall
 ocw cost --since 1h   # should show cost breakdown by model (not $0.000000)
 ocw budget       # should show budget table with configured limits
 ocw alerts       # should show alert history (may be empty)
+ocw doctor       # exit 0 or 1 (warnings ok), no errors
 
 # 7. Start server (tests web UI + HTTP exporter)
 ocw serve &
@@ -77,6 +78,64 @@ cat ~/.claude/settings.json | python3 -m json.tool
 
 # Re-run to test secret resync (should not crash)
 ocw onboard --claude-code --budget 5
+# Output should include: "Daemon: already running (skipped reinstall)"
+# macOS should NOT show a second "Background Items Added" prompt
+
+# Verify projects index exists
+cat ~/.config/ocw/projects.json   # should list current cwd
+
+# Multi-project onboard — daemon should NOT reinstall, secret should NOT rotate
+ORIG_SECRET=$(python3 -c "import json,os; print(json.load(open(os.path.expanduser('~/.claude/settings.json')))['env']['OTEL_EXPORTER_OTLP_HEADERS'])")
+mkdir -p /tmp/ocw-test-project-2 && cd /tmp/ocw-test-project-2
+git init -q
+ocw onboard --claude-code
+NEW_SECRET=$(python3 -c "import json,os; print(json.load(open(os.path.expanduser('~/.claude/settings.json')))['env']['OTEL_EXPORTER_OTLP_HEADERS'])")
+[ "$ORIG_SECRET" = "$NEW_SECRET" ] && echo "ok: secret unchanged" || echo "FAIL: secret rotated"
+cd ~/openclawwatch
+
+# Verify global config fallback: CLI works from a dir with no local config
+cd /tmp && ocw status && cd ~/openclawwatch
+```
+
+## Codex CLI integration (if applicable)
+
+Codex onboarding is **one-time global** (Codex hardcodes `service.name=codex_exec`); all Codex traces land under the `codex_exec` agent ID.
+
+```bash
+# Prereq: ocw serve running — onboard reads ~/.local/share/ocw/server.state
+# to find the running server's config and sync the ingest secret.
+ocw serve &
+sleep 2
+test -f ~/.local/share/ocw/server.state && echo "ok: server.state exists"
+
+ocw onboard --codex
+# Should: write [otel] + [mcp_servers.ocw] to ~/.codex/config.toml,
+#         use ingest secret from running server,
+#         NOT write [otel.resource] block (Codex ignores it).
+
+# Verify secret synced between server and Codex config
+SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | cut -d'"' -f2)
+CODEX_SECRET=$(grep -oE 'Authorization=Bearer [a-f0-9]+' ~/.codex/config.toml | cut -d' ' -f2)
+[ "$SERVER_SECRET" = "$CODEX_SECRET" ] && echo "ok: secret synced"
+
+# Re-run is a no-op when both [otel] and [mcp_servers.ocw] already present
+ocw onboard --codex
+
+# If codex CLI is installed, drive a session and verify ingest
+codex exec "say hello"
+ocw status --agent codex_exec   # should show codex_exec (NOT codex-<project>)
+ocw traces --agent codex_exec
+```
+
+## Incident library demos
+
+```bash
+# Zero-config scenarios — no API keys, no live agents needed.
+ocw demo --list
+ocw demo retry-loop
+ocw demo surprise-cost
+ocw demo hallucination-drift
+# Each writes synthetic spans; verify visible in `ocw traces` and `ocw alerts`.
 ```
 
 ## What to look for
