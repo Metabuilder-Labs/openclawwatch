@@ -40,6 +40,14 @@ python3 examples/alerts_and_drift/sensitive_actions_demo.py
 python3 examples/alerts_and_drift/budget_breach_demo.py
 python3 examples/alerts_and_drift/drift_demo.py
 
+# 7b. Run incident library demos (zero-config, no API keys)
+ocw demo --list
+ocw demo retry-loop
+ocw demo surprise-cost
+ocw demo hallucination-drift
+# [ ] Each runs without errors
+# [ ] Each writes spans to the DB (verify in step 9 with `ocw traces`)
+
 # 8. Populate test data — real API calls
 source .env.local
 python3 examples/single_provider/anthropic_agent.py
@@ -52,6 +60,7 @@ ocw cost --since 1h   # real USD values, not $0.000000
 ocw alerts        # alerts from sensitive_actions and budget_breach demos
 ocw drift         # baseline built from drift_demo sessions
 ocw budget        # budget table with configured limits
+ocw doctor        # exit 0 (or 1 with warnings); no errors. Checks config, DB, secret, drift readiness
 
 # 10. Start server
 # Note: must stop daemon first (step 6) or this will fail with "Address already in use"
@@ -117,12 +126,90 @@ ocw onboard --claude-code
 #         write settings to ~/.claude/settings.json,
 #         register MCP server if claude CLI available,
 #         auto-install daemon
+#         create ~/.config/ocw/projects.json with current cwd
 
-# Verify no crash on re-run (secret resync)
+# Verify global config (not project-local)
+test -f ~/.config/ocw/config.toml && echo "ok: global config"
+test ! -f ./.ocw/config.toml && echo "ok: no project-local config written"
+
+# Verify projects.json tracks the cwd
+cat ~/.config/ocw/projects.json   # should contain current working directory
+
+# Verify no crash on re-run (secret resync, same project)
 ocw onboard --claude-code --budget 5
+# Output should include: "Daemon: already running (skipped reinstall)"
+# macOS should NOT show another "Background Items Added" notification.
+
+# Verify multi-project onboard (the 490ad8e fix)
+mkdir -p /tmp/ocw-test-project-2 && cd /tmp/ocw-test-project-2
+git init -q
+ocw onboard --claude-code
+# [ ] Output shows "Daemon: already running (skipped reinstall)" — daemon NOT reinstalled
+# [ ] No new "Background Items Added" prompt on macOS
+# [ ] ~/.config/ocw/projects.json now lists BOTH project paths
+# [ ] ingest_secret in ~/.claude/settings.json unchanged from first onboard
+#     (so the original project's auth still works)
+cat ~/.config/ocw/projects.json
+cd ~/openclawwatch
+
+# Verify global config fallback: CLI works from a directory with no local config
+cd /tmp && ocw status   # should resolve to global config, not error out
+cd ~/openclawwatch
+
+# Verify --force does reinstall the daemon
+ocw onboard --claude-code --force
+# Output should include: "Daemon: installing..."
 
 # Verify MCP server starts
 ocw mcp --help
+```
+
+## Codex CLI integration (if applicable)
+
+Codex hardcodes `service.name=codex_exec` in its binary, so this is a **one-time global** setup, not per-project. All Codex traces land under the `codex_exec` agent ID regardless of which project directory you onboard from.
+
+```bash
+# Prereq: ocw serve must be running so onboard can read ~/.local/share/ocw/server.state
+ocw serve &
+sleep 2
+
+# Verify the server state file was written by `ocw serve`
+test -f ~/.local/share/ocw/server.state && echo "ok: server.state exists"
+cat ~/.local/share/ocw/server.state   # should contain resolved config path
+
+# Onboard Codex
+ocw onboard --codex
+# Should: write [otel] block + [mcp_servers.ocw] to ~/.codex/config.toml,
+#         use ingest secret from the running server (matched via server.state),
+#         NOT write [otel.resource] (Codex ignores it — would cause stale agent IDs)
+
+# Verify Codex config
+cat ~/.codex/config.toml
+# [ ] Contains [otel] block with otlp_endpoint, otlp_headers (Authorization=Bearer ...)
+# [ ] Contains [mcp_servers.ocw] block
+# [ ] Does NOT contain [otel.resource] block
+
+# Verify secret matches the running server
+SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | cut -d'"' -f2)
+CODEX_SECRET=$(grep -oE 'Authorization=Bearer [a-f0-9]+' ~/.codex/config.toml | cut -d' ' -f2)
+[ "$SERVER_SECRET" = "$CODEX_SECRET" ] && echo "ok: secret synced" || echo "FAIL: secret mismatch"
+
+# Verify skip-on-rerun (must have BOTH [otel] and [mcp_servers.ocw])
+ocw onboard --codex   # should print "already configured" / no-op
+
+# Verify cross-sync: re-onboarding Claude Code updates Codex config too
+ocw onboard --claude-code --force
+# After: ingest secret in ~/.claude/settings.json, ~/.codex/config.toml,
+#        and ~/.config/ocw/config.toml should all match.
+
+# Drive a Codex session (if codex CLI installed) and verify ingestion
+codex exec "say hello"   # or any short codex command
+ocw status --agent codex_exec   # should show codex_exec agent with spans/cost
+ocw traces --agent codex_exec
+# [ ] Spans land under agent_id=codex_exec (NOT codex-<project-name>)
+# [ ] /v1/logs endpoint accepted the OTLP log records (no 400 in `ocw serve` output)
+
+ocw stop
 ```
 
 ## Quick test (skip web UI — just verify core)
