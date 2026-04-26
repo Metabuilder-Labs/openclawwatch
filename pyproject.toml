@@ -65,6 +65,7 @@ asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ocw"]
+artifacts = ["incidents"]
 
 [tool.ruff]
 line-length = 100
