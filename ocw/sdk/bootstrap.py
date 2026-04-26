@@ -46,12 +46,10 @@ def ensure_initialised() -> None:
 
             # Direct DuckDB mode
             from ocw.core.db import open_db
-            from ocw.core.ingest import IngestPipeline
-            from ocw.core.cost import CostEngine
+            from ocw.core.ingest import build_default_pipeline
 
             db = open_db(config.storage)
-            cost_engine = CostEngine(db)
-            pipeline = IngestPipeline(db, config, cost_engine=cost_engine)
+            pipeline = build_default_pipeline(db, config)
             _pipeline = pipeline
             _provider = build_tracer_provider(config, pipeline)
             _initialised = True

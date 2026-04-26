@@ -115,7 +115,7 @@ ocw onboard --codex
 
 # Verify secret synced between server and Codex config
 SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | cut -d'"' -f2)
-CODEX_SECRET=$(grep -oE 'Authorization=Bearer [a-f0-9]+' ~/.codex/config.toml | cut -d' ' -f2)
+CODEX_SECRET=$(grep -oE 'Authorization=Bearer [^ "]+' ~/.codex/config.toml | cut -d' ' -f2)
 [ "$SERVER_SECRET" = "$CODEX_SECRET" ] && echo "ok: secret synced"
 
 # Re-run is a no-op when both [otel] and [mcp_servers.ocw] already present
@@ -125,6 +125,9 @@ ocw onboard --codex
 codex exec "say hello"
 ocw status --agent codex_exec   # should show codex_exec (NOT codex-<project>)
 ocw traces --agent codex_exec
+
+# Stop the background server started in the prereq
+ocw stop
 ```
 
 ## Incident library demos

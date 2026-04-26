@@ -216,9 +216,12 @@ class DriftDetector:
         """
         Called when a session reaches status='completed'.
         Builds baseline if enough sessions exist, or evaluates drift against existing baseline.
+        Falls back to default AgentConfig (drift.enabled=True) when agent isn't explicitly
+        configured, so drift detection works out of the box for any observed agent.
         """
-        agent_config = self.config.agents.get(agent_id)
-        if agent_config is None or not agent_config.drift.enabled:
+        from ocw.core.config import AgentConfig
+        agent_config = self.config.agents.get(agent_id) or AgentConfig()
+        if not agent_config.drift.enabled:
             return
 
         baseline = self.db.get_baseline(agent_id)

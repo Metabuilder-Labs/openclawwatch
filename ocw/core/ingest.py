@@ -237,3 +237,29 @@ class IngestPipeline:
                 self.schema_validator.validate(span)
             except Exception as exc:
                 logger.warning("SchemaValidator hook failed: %s", exc)
+
+
+def build_default_pipeline(db: "StorageBackend", config: OcwConfig) -> "IngestPipeline":
+    """Construct an IngestPipeline with all standard post-ingest hooks wired up.
+
+    Used by both `ocw serve` and the SDK auto-bootstrap so alerts, drift detection,
+    and schema validation work uniformly regardless of how spans enter the system.
+    """
+    from ocw.core.alerts import AlertEngine
+    from ocw.core.cost import CostEngine
+    from ocw.core.drift import DriftDetector
+    from ocw.core.schema_validator import SchemaValidator
+
+    cost_engine = CostEngine(db)
+    alert_engine = AlertEngine(db=db, config=config)
+    drift_detector = DriftDetector(db=db, alert_engine=alert_engine, config=config)
+    schema_validator = SchemaValidator(db=db, alert_engine=alert_engine, config=config)
+
+    return IngestPipeline(
+        db=db,
+        config=config,
+        cost_engine=cost_engine,
+        alert_engine=alert_engine,
+        drift_detector=drift_detector,
+        schema_validator=schema_validator,
+    )

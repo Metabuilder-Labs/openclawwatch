@@ -9,20 +9,8 @@ Shows how ocw detects statistical drift and fires DRIFT_DETECTED alerts.
 
 No API keys required — uses simulated instrumentation.
 
-# --- Required ocw.toml config ---
-# Add this to your ocw.toml (or ~/.config/ocw/config.toml):
-#
-# [[agents]]
-# id = "drift-demo"
-#
-# [agents.drift]
-# enabled = true
-# baseline_sessions = 10
-# token_threshold = 2.0
-# tool_sequence_diff = 0.4
-#
-# [[alerts.channels]]
-# type = "stdout"
+Drift detection is on by default for any observed agent (see DriftConfig
+defaults), so this demo needs no extra config — it just runs.
 """
 from __future__ import annotations
 
