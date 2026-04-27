@@ -984,16 +984,29 @@ function DriftView() {
                 const std = a.baseline[stdKey];
                 const latest = a.latest_session ? a.latest_session[latestKey] : null;
                 let z = null;
-                if (avg != null && std != null && std > 0 && latest != null) {
-                  z = (latest - avg) / std;
+                let zDisplay = '-';
+                if (avg != null && latest != null) {
+                  if (std != null && std > 0) {
+                    z = (latest - avg) / std;
+                    zDisplay = z.toFixed(2);
+                  } else if (std === 0 || std == null) {
+                    // Match drift.py z_score: inf when stddev=0 and value != mean
+                    if (latest !== avg) {
+                      z = Infinity;
+                      zDisplay = 'inf';
+                    } else {
+                      z = 0;
+                      zDisplay = '0.00';
+                    }
+                  }
                 }
-                const pass = z == null || Math.abs(z) < 2;
+                const pass = z == null || (Number.isFinite(z) && Math.abs(z) < 2);
                 return html`
                   <tr>
                     <td>${label}</td>
                     <td class="mono">${avg != null ? avg.toFixed(1) : '-'}${std != null ? ' +/- ' + std.toFixed(1) : ''}</td>
                     <td class="mono">${latest != null ? (typeof latest === 'number' ? latest.toFixed(1) : latest) : '-'}</td>
-                    <td class="mono" style="color:${pass ? 'var(--success)' : 'var(--error)'}">${z != null ? z.toFixed(2) : '-'}</td>
+                    <td class="mono" style="color:${pass ? 'var(--success)' : 'var(--error)'}">${zDisplay}</td>
                     <td><span class="badge ${pass ? 'badge-ok' : 'badge-critical'}">${pass ? 'pass' : 'drift'}</span></td>
                   </tr>
                 `;

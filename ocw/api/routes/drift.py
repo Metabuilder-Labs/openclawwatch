@@ -38,7 +38,9 @@ def _build_agent_drift(db: Any, agent_id: str) -> dict:
             "avg_output_tokens": baseline.avg_output_tokens,
             "stddev_output_tokens": baseline.stddev_output_tokens,
             "avg_session_duration_s": baseline.avg_session_duration_s,
+            "stddev_session_duration": baseline.stddev_session_duration,
             "avg_tool_call_count": baseline.avg_tool_call_count,
+            "stddev_tool_call_count": baseline.stddev_tool_call_count,
         },
         "latest_session": latest,
     }

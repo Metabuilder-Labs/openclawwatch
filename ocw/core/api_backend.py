@@ -23,6 +23,7 @@ from ocw.core.models import (
     TraceFilters,
     TraceRecord,
 )
+from ocw.utils.time_parse import utcnow
 
 
 class ApiBackend:
@@ -147,8 +148,35 @@ class ApiBackend:
         return data.get("total_cost_usd", 0.0)
 
     def get_completed_sessions(self, agent_id: str, limit: int) -> list[SessionRecord]:
-        # Not available via API — return empty list, status will degrade gracefully
-        return []
+        # Use /api/v1/status which already returns the latest session per agent
+        # with token counts and tool_call_count populated. Without this,
+        # `ocw status` over a running server shows every agent as "idle" with
+        # zeros even when sessions exist (U3).
+        try:
+            data = self._get("/api/v1/status", {"agent_id": agent_id})
+        except (httpx.HTTPError, ValueError):
+            return []
+        agents = data.get("agents", [])
+        if not agents:
+            return []
+        a = agents[0]
+        if not a.get("session_id"):
+            return []
+        started_at = a.get("started_at")
+        return [SessionRecord(
+            session_id=a["session_id"],
+            agent_id=a.get("agent_id") or agent_id,
+            started_at=datetime.fromisoformat(started_at) if started_at else utcnow(),
+            ended_at=None,
+            conversation_id=None,
+            status=a.get("status", "completed"),
+            total_cost_usd=a.get("total_cost_usd"),
+            input_tokens=a.get("input_tokens", 0) or 0,
+            output_tokens=a.get("output_tokens", 0) or 0,
+            cache_tokens=0,
+            tool_call_count=a.get("tool_call_count", 0) or 0,
+            error_count=a.get("error_count", 0) or 0,
+        )][:limit]
 
     def get_completed_session_count(self, agent_id: str) -> int:
         return 0
