@@ -63,3 +63,26 @@ class TestDaemonAlreadyRunning:
         """Returns False on unsupported platforms."""
         monkeypatch.setattr("ocw.cli.cmd_onboard.platform.system", lambda: "Windows")
         assert _daemon_already_running() is False
+
+
+class TestLaunchdInstallUsesWFlag:
+    """`_install_launchd` must pass -w to both unload and load so it clears
+    the Disabled=true flag that `ocw stop` writes (C1)."""
+
+    def test_load_uses_w_flag(self, tmp_path, monkeypatch):
+        from ocw.cli.cmd_onboard import _install_launchd
+        monkeypatch.setattr("ocw.cli.cmd_onboard.Path.home", lambda: tmp_path)
+        monkeypatch.setattr("ocw.cli.cmd_onboard.shutil.which", lambda _: "/usr/bin/ocw")
+
+        run_mock = MagicMock(return_value=MagicMock(returncode=0))
+        with patch("ocw.cli.cmd_onboard.subprocess.run", run_mock):
+            _install_launchd("/tmp/cfg.toml")
+
+        # Both unload and load must include -w
+        calls = [c.args[0] for c in run_mock.call_args_list]
+        assert any("unload" in c and "-w" in c for c in calls), (
+            f"unload should use -w; calls were {calls}"
+        )
+        assert any("load" in c and "-w" in c for c in calls), (
+            f"load should use -w; calls were {calls}"
+        )
