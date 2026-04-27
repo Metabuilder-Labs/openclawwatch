@@ -53,17 +53,23 @@ def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
         scheduler.shutdown(wait=False)
 
     # Write the resolved config path so other subcommands (e.g. onboard --codex)
-    # can find the secret this server is using regardless of CWD.
+    # can find the secret this server is using regardless of CWD. Defer the
+    # write to a FastAPI startup event so it only fires after uvicorn binds
+    # the port — otherwise a failed-to-bind serve clobbers the state file
+    # of the running daemon (D2).
     import json as _json
     _state_path = Path.home() / ".local" / "share" / "ocw" / "server.state"
-    _state_path.parent.mkdir(parents=True, exist_ok=True)
-    _state_path.write_text(
-        _json.dumps({
-            "config_path": str(config.config_path) if config.config_path else None,
-            "port": bind_port,
-            "pid": __import__("os").getpid(),
-        })
-    )
+
+    @app.on_event("startup")
+    async def _write_server_state() -> None:
+        _state_path.parent.mkdir(parents=True, exist_ok=True)
+        _state_path.write_text(
+            _json.dumps({
+                "config_path": str(config.config_path) if config.config_path else None,
+                "port": bind_port,
+                "pid": __import__("os").getpid(),
+            })
+        )
 
     console.print(f"[bold]ocw serve[/bold] starting on http://{bind_host}:{bind_port}")
     console.print(f"  API docs:    http://{bind_host}:{bind_port}/docs")

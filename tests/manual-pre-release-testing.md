@@ -134,9 +134,12 @@ ocw onboard --claude-code
 #         auto-install daemon
 #         create ~/.config/ocw/projects.json with current cwd
 
-# Verify global config (not project-local)
+# Verify global config exists.
+# Note: a project-local `.ocw/config.toml` likely already exists from step 5's
+# `ocw onboard` — `--claude-code` does NOT delete or overwrite it; it only
+# writes to the global config. The "no project-local" check belongs in the
+# multi-project block below where cwd is genuinely fresh.
 test -f ~/.config/ocw/config.toml && echo "ok: global config"
-test ! -f ./.ocw/config.toml && echo "ok: no project-local config written"
 
 # Verify projects.json tracks the cwd
 cat ~/.config/ocw/projects.json   # should contain current working directory
@@ -156,6 +159,9 @@ ocw onboard --claude-code
 # [ ] ingest_secret in ~/.claude/settings.json unchanged from first onboard
 #     (so the original project's auth still works)
 cat ~/.config/ocw/projects.json
+# Confirm --claude-code did NOT create a project-local config in this fresh
+# directory (this dir has no preexisting .ocw/, so the check is meaningful here).
+test ! -f .ocw/config.toml && echo "ok: --claude-code did not create project-local config"
 cd ~/openclawwatch
 
 # Verify global config fallback: CLI works from a directory with no local config
@@ -195,9 +201,12 @@ cat ~/.codex/config.toml
 # [ ] Contains [mcp_servers.ocw] block
 # [ ] Does NOT contain [otel.resource] block
 
-# Verify secret matches the running server
-SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | cut -d'"' -f2)
-CODEX_SECRET=$(grep -oE 'Authorization=Bearer [^ "]+' ~/.codex/config.toml | cut -d' ' -f2)
+# Verify secret matches the running server.
+# Note: ~/.codex/config.toml uses TOML format `Authorization = "Bearer <secret>"`
+# (with spaces around `=` and surrounding quotes), so the grep must allow for
+# that — a literal `Authorization=Bearer ` pattern silently misses every match.
+SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | sed 's/.*= "//' | tr -d '"')
+CODEX_SECRET=$(grep -oE 'Bearer [^"]+' ~/.codex/config.toml | sed 's/Bearer //')
 [ "$SERVER_SECRET" = "$CODEX_SECRET" ] && echo "ok: secret synced" || echo "FAIL: secret mismatch"
 
 # Verify skip-on-rerun (must have BOTH [otel] and [mcp_servers.ocw])
