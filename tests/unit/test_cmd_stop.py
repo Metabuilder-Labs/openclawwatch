@@ -40,6 +40,25 @@ class TestStopSweepsForegroundProcesses:
         assert "launchd daemon unloaded" in result.output
         assert "PID 12345" in result.output
 
+    def test_does_not_loop_on_slow_shutdown(self, tmp_path, monkeypatch):
+        """SIGTERM is async — if the target process hasn't exited before the
+        next pgrep, the sweep must NOT re-signal the same PID. Otherwise a
+        slow shutdown handler can make `ocw stop` hang forever."""
+        monkeypatch.setattr("ocw.cli.cmd_stop.Path.home", lambda: tmp_path)
+        kill_mock = MagicMock()
+        # pgrep keeps returning the same PID — simulates a process whose
+        # SIGTERM handler hasn't completed yet.
+        find_pid_mock = MagicMock(side_effect=[12345] * 50)
+
+        with patch("ocw.cli.cmd_stop.os.kill", kill_mock), \
+             patch("ocw.cli.cmd_stop._find_serve_pid", find_pid_mock):
+            result = CliRunner().invoke(cmd_stop, [], obj={})
+
+        assert result.exit_code == 0
+        # SIGTERM sent exactly once even though pgrep saw the PID 50 times.
+        assert kill_mock.call_count == 1
+        kill_mock.assert_called_once_with(12345, 15)
+
     def test_reports_not_running_when_nothing_to_stop(self, tmp_path, monkeypatch):
         # No plist, no systemd unit, no foreground process.
         monkeypatch.setattr("ocw.cli.cmd_stop.Path.home", lambda: tmp_path)

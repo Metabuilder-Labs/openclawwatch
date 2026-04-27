@@ -46,16 +46,19 @@ def cmd_stop(ctx: click.Context) -> None:
 
     # Always sweep for orphan foreground `ocw serve` processes started via
     # `ocw serve &` — launchd/systemd unload doesn't affect those, and they
-    # keep holding the port. Loop until pgrep stops finding matches so
-    # multiple stragglers all get reaped.
-    while True:
+    # keep holding the port. Track signaled PIDs so a slow-shutting process
+    # doesn't get re-signaled (SIGTERM is async; pgrep can return the same
+    # PID before the handler fires, which would otherwise spin forever).
+    signaled: set[int] = set()
+    for _ in range(20):  # hard cap — well above any realistic straggler count
         pid = _find_serve_pid()
-        if not pid:
+        if not pid or pid in signaled:
             break
         try:
             os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
             break
+        signaled.add(pid)
         stopped_via.append(f"PID {pid}")
 
     if stopped_via:
