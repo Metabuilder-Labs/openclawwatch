@@ -134,7 +134,7 @@ ocw stop
 
 ```bash
 # Zero-config scenarios — no API keys, no live agents needed.
-ocw demo --list
+ocw demo                # lists available scenarios (no flag)
 ocw demo retry-loop
 ocw demo surprise-cost
 ocw demo hallucination-drift

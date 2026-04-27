@@ -330,7 +330,7 @@ def _onboard_codex(
 
     from ocw.core.config import (
         AgentConfig, BudgetConfig, OcwConfig, SecurityConfig,
-        find_config_file, load_config, write_config,
+        load_config, write_config,
     )
 
     # Codex hardcodes service.name="codex_exec" in its binary regardless of
@@ -343,25 +343,12 @@ def _onboard_codex(
             type=float, default=0.0, show_default=False,
         )
 
-    # Prefer the running server's config over CWD discovery — otherwise the
-    # secret written to Codex mismatches when onboard runs from a different
-    # project than where `ocw serve` was started.
-    import json as _json
-    _state_path = Path.home() / ".local" / "share" / "ocw" / "server.state"
-    config_path: Path | None = None
-    if _state_path.exists():
-        try:
-            _state = _json.loads(_state_path.read_text())
-            _cp = _state.get("config_path")
-            if _cp and Path(_cp).exists():
-                config_path = Path(_cp)
-        except Exception:
-            pass
-    if config_path is None:
-        existing_path = find_config_file()
-        fallback_path = Path.home() / ".config" / "ocw" / "config.toml"
-        config_path = existing_path if existing_path is not None else fallback_path
-    assert config_path is not None  # fallback_path is always set
+    # `--codex` always writes to the global config, mirroring `--claude-code`.
+    # Codex's own config (~/.codex/config.toml) is global and the agent_id
+    # `codex_exec` is project-agnostic by design (Codex hardcodes service.name
+    # in its binary). Per-project OCW configs would rotate the secret on every
+    # onboard, breaking the running server.
+    config_path = Path.home() / ".config" / "ocw" / "config.toml"
 
     previous_secret: str | None = None
     if config_path.exists():
@@ -415,11 +402,14 @@ def _onboard_codex(
     already_has_otel = "otel" in existing_codex
     already_has_mcp = bool(existing_codex.get("mcp_servers", {}).get("ocw"))
     if already_has_otel and already_has_mcp and not force:
-        console.print(
-            "[yellow]~/.codex/config.toml already has [otel] and [mcp_servers.ocw] sections.[/yellow]"
+        # Use plain print() for messages containing TOML section headers like
+        # [otel] — Rich treats square brackets as markup tags and would strip
+        # them, leaving the message unintelligible ("already has  and ").
+        click.echo(
+            "~/.codex/config.toml already has [otel] and [mcp_servers.ocw] sections."
         )
-        console.print("Use [bold]--force[/bold] to overwrite, or add manually:")
-        console.print()
+        click.echo("Use --force to overwrite, or add manually:")
+        click.echo("")
         _print_codex_otel_block(port, secret, agent_id)
         return
 
@@ -597,12 +587,14 @@ def _codex_otel_toml_block(port: int, secret: str, agent_id: str) -> str:
 
 
 def _print_codex_otel_block(port: int, secret: str, agent_id: str = "codex_exec") -> None:
-    console.print("[dim]Add this to ~/.codex/config.toml:[/dim]")
-    console.print()
+    # Plain print — the TOML block contains [otel] and other section headers
+    # that Rich would interpret as markup tags and strip from the output.
+    click.echo("Add this to ~/.codex/config.toml:")
+    click.echo("")
     block = _codex_otel_toml_block(port, secret, agent_id)
     for line in block.splitlines():
-        console.print(f"[dim]  {line}[/dim]")
-    console.print()
+        click.echo(f"  {line}")
+    click.echo("")
 
 
 def _sync_secret_to_codex(secret: str) -> bool:
@@ -739,11 +731,14 @@ def _install_launchd(config_path: str) -> str | None:
     # Unload any existing registration before loading the updated plist.
     # Ignore errors — the service may not be registered yet on first install.
     subprocess.run(
-        ["launchctl", "unload", str(plist_path)],
+        ["launchctl", "unload", "-w", str(plist_path)],
         capture_output=True, text=True,
     )
+    # `-w` clears the Disabled=true flag that `ocw stop` writes via
+    # `launchctl unload -w`. Without `-w` here, the daemon stays disabled
+    # in launchd's database and load is a no-op even though it returns 0.
     result = subprocess.run(
-        ["launchctl", "load", str(plist_path)],
+        ["launchctl", "load", "-w", str(plist_path)],
         capture_output=True, text=True,
     )
     if result.returncode != 0:

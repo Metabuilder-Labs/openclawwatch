@@ -182,9 +182,9 @@ Config is TOML, discovered at: `ocw.toml` -> `.ocw/config.toml` -> `~/.config/oc
 - **Linux**: `~/.config/systemd/user/openclawwatch.service` — enabled via `systemctl --user enable --now openclawwatch`.
 - **Other**: skipped with a notice; user runs `ocw serve` manually.
 
-Reinstall behavior: `--claude-code` and `--codex` onboard check `_daemon_already_running()` (launchctl list / systemctl is-active) and skip reinstall when the daemon is up unless `--force` is passed. This avoids spurious "Background Items Added" prompts on macOS during second-project onboards. The launchd path always `launchctl unload`s before `load` to handle plist updates idempotently. Use `ocw stop` to halt the daemon, `ocw uninstall` to remove unit files.
+Reinstall behavior: `--claude-code` and `--codex` onboard check `_daemon_already_running()` (launchctl list / systemctl is-active) and skip reinstall when the daemon is up unless `--force` is passed. This avoids spurious "Background Items Added" prompts on macOS during second-project onboards. The launchd path always uses `launchctl unload -w` then `launchctl load -w` — the `-w` flag clears any Disabled=true entry from the launchd database (`ocw stop` writes Disabled=true via `launchctl unload -w`), without which a subsequent plain `launchctl load` is a silent no-op. Use `ocw stop` to halt the daemon, `ocw uninstall` to remove unit files. `ocw stop` also sweeps for any orphan foreground `ocw serve` processes (e.g. from a manual `ocw serve &`) so it reliably frees port 7391.
 
-`ocw serve` writes its resolved config path to `~/.local/share/ocw/server.state` at startup. Onboarding flows (especially `--codex`) read this file first so the ingest secret they write to the agent's config matches the secret in use by the running server, regardless of which project directory onboard is run from.
+`ocw serve` writes its resolved config path to `~/.local/share/ocw/server.state` at startup. This is informational — onboarding flows (`--claude-code` and `--codex`) always write to the global config, so server.state is not used for secret-sync.
 
 ## MCP Server
 

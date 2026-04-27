@@ -21,7 +21,11 @@ git fetch origin
 git checkout <branch-name>
 
 # 3. Install locally (editable — uses local files, no pip publish needed)
-pip3 install -e ".[dev,mcp]" --force-reinstall
+# Uninstall any prior PyPI install of `openclawwatch` first so the editable
+# install isn't shadowed. Targeted — we don't `--force-reinstall` the whole
+# dep tree (that bumps shared deps and breaks unrelated packages like litellm).
+pip3 uninstall -y openclawwatch
+pip3 install -e ".[dev,mcp]"
 ocw --version
 # Verify the installed `ocw` actually imports from the repo, not site-packages
 python3 -c "import ocw; print(ocw.__file__)"   # must point inside ~/openclawwatch
@@ -43,7 +47,7 @@ python3 examples/alerts_and_drift/budget_breach_demo.py
 python3 examples/alerts_and_drift/drift_demo.py
 
 # 7b. Run incident library demos (zero-config, no API keys)
-ocw demo --list
+ocw demo                # lists available scenarios (no flag)
 ocw demo retry-loop
 ocw demo surprise-cost
 ocw demo hallucination-drift
@@ -203,14 +207,14 @@ ocw onboard --codex   # should print "already configured" / no-op
 # so the daemon reinstall doesn't collide with the running server on port 7391.
 ocw stop
 
-# Verify cross-sync: re-onboarding Claude Code updates Codex config too
+# Verify cross-sync: re-onboarding Claude Code updates Codex config too.
+# `--force` reinstalls the launchd daemon which auto-starts a new `ocw serve`,
+# so do NOT manually run `ocw serve &` after this — that would collide on
+# port 7391. The just-reinstalled daemon is already serving.
 ocw onboard --claude-code --force
 # After: ingest secret in ~/.claude/settings.json, ~/.codex/config.toml,
 #        and ~/.config/ocw/config.toml should all match.
-
-# Restart serve for the remaining checks below
-ocw serve &
-sleep 2
+sleep 2  # give the auto-started daemon a moment to bind the port
 
 # Drive a Codex session (if codex CLI installed) and verify ingestion
 codex exec "say hello"   # or any short codex command

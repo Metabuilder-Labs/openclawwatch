@@ -17,6 +17,8 @@ def cmd_stop(ctx: click.Context) -> None:
     plist_path = Path.home() / "Library/LaunchAgents/com.openclawwatch.serve.plist"
     systemd_path = Path.home() / ".config/systemd/user/openclawwatch.service"
 
+    stopped_via: list[str] = []
+
     # Try launchd first (macOS).
     # -w writes a Disabled entry to launchd's database so the daemon does not
     # auto-start on the next login (the plist file stays on disk so the user
@@ -27,9 +29,7 @@ def cmd_stop(ctx: click.Context) -> None:
             capture_output=True, text=True,
         )
         if result.returncode == 0:
-            console.print("[green]ocw serve stopped.[/green] (launchd daemon unloaded)")
-            return
-        # If unload failed, the daemon may not have been loaded — fall through
+            stopped_via.append("launchd daemon unloaded")
 
     # Try systemd (Linux).
     # `disable --now` stops the unit immediately AND removes it from the
@@ -42,18 +42,31 @@ def cmd_stop(ctx: click.Context) -> None:
             capture_output=True, text=True,
         )
         if result.returncode == 0:
-            console.print("[green]ocw serve stopped.[/green] (systemd service stopped)")
-            return
-        # Fall through to pgrep if systemctl is unavailable or the unit isn't loaded
+            stopped_via.append("systemd service stopped")
 
-    # Fallback: find and signal the process directly
-    pid = _find_serve_pid()
-    if pid:
-        os.kill(pid, signal.SIGTERM)
-        console.print(f"[green]ocw serve stopped.[/green] (PID {pid})")
-        return
+    # Always sweep for orphan foreground `ocw serve` processes started via
+    # `ocw serve &` — launchd/systemd unload doesn't affect those, and they
+    # keep holding the port. Track signaled PIDs so a slow-shutting process
+    # doesn't get re-signaled (SIGTERM is async; pgrep can return the same
+    # PID before the handler fires, which would otherwise spin forever).
+    signaled: set[int] = set()
+    for _ in range(20):  # hard cap — well above any realistic straggler count
+        pid = _find_serve_pid()
+        if not pid or pid in signaled:
+            break
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            break
+        signaled.add(pid)
+        stopped_via.append(f"PID {pid}")
 
-    console.print("[dim]ocw serve is not running.[/dim]")
+    if stopped_via:
+        console.print(
+            f"[green]ocw serve stopped.[/green] ({', '.join(stopped_via)})"
+        )
+    else:
+        console.print("[dim]ocw serve is not running.[/dim]")
 
 
 def _find_serve_pid() -> int | None:
