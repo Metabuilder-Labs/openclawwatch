@@ -23,6 +23,7 @@ from ocw.core.models import (
     TraceFilters,
     TraceRecord,
 )
+from ocw.utils.time_parse import utcnow
 
 
 class ApiBackend:
@@ -165,7 +166,7 @@ class ApiBackend:
         return [SessionRecord(
             session_id=a["session_id"],
             agent_id=a.get("agent_id") or agent_id,
-            started_at=datetime.fromisoformat(started_at) if started_at else datetime.utcnow(),
+            started_at=datetime.fromisoformat(started_at) if started_at else utcnow(),
             ended_at=None,
             conversation_id=None,
             status=a.get("status", "completed"),
