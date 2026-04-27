@@ -434,10 +434,12 @@ class DuckDBBackend:
             params.append(filters.status)
             idx += 1
         where = " AND ".join(clauses) if clauses else "1=1"
+        # Use FIRST(name ORDER BY start_time) to pick the root span name —
+        # the previous correlated-subquery variant returned NULL for most
+        # rows in DuckDB, leaving the TYPE column blank in `ocw traces` (U2).
         sql = (
             f"SELECT trace_id, MAX(agent_id) AS agent_id, "
-            f"(SELECT name FROM spans s2 WHERE s2.trace_id = spans.trace_id "
-            f" ORDER BY start_time LIMIT 1) AS name, "
+            f"FIRST(name ORDER BY start_time) AS name, "
             f"MIN(start_time) AS start_time, "
             f"SUM(duration_ms) AS duration_ms, "
             f"SUM(cost_usd) AS cost_usd, "
