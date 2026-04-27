@@ -113,9 +113,11 @@ ocw onboard --codex
 #         use ingest secret from running server,
 #         NOT write [otel.resource] block (Codex ignores it).
 
-# Verify secret synced between server and Codex config
-SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | cut -d'"' -f2)
-CODEX_SECRET=$(grep -oE 'Authorization=Bearer [^ "]+' ~/.codex/config.toml | cut -d' ' -f2)
+# Verify secret synced between server and Codex config.
+# ~/.codex/config.toml uses TOML format `Authorization = "Bearer <secret>"`,
+# so the grep must allow the spaces around `=` and the surrounding quotes.
+SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | sed 's/.*= "//' | tr -d '"')
+CODEX_SECRET=$(grep -oE 'Bearer [^"]+' ~/.codex/config.toml | sed 's/Bearer //')
 [ "$SERVER_SECRET" = "$CODEX_SECRET" ] && echo "ok: secret synced"
 
 # Re-run is a no-op when both [otel] and [mcp_servers.ocw] already present
