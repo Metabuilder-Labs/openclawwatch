@@ -7,6 +7,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from ocw.core.config import AgentConfig
 from ocw.core.models import (
     AlertType,
     DriftBaseline,
@@ -219,7 +220,6 @@ class DriftDetector:
         Falls back to default AgentConfig (drift.enabled=True) when agent isn't explicitly
         configured, so drift detection works out of the box for any observed agent.
         """
-        from ocw.core.config import AgentConfig
         agent_config = self.config.agents.get(agent_id) or AgentConfig()
         if not agent_config.drift.enabled:
             return

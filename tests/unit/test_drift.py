@@ -3,8 +3,7 @@ from unittest.mock import MagicMock
 
 from ocw.core.config import OcwConfig
 from ocw.core.drift import DriftDetector, jaccard_similarity, z_score
-from ocw.core.models import SessionRecord
-from ocw.utils.time_parse import utcnow
+from tests.factories import make_session
 
 
 class TestZScore:
@@ -58,9 +57,8 @@ class TestDriftDetectorAgentFallback:
         db.get_baseline.return_value = None
         db.get_completed_session_count.return_value = 10
         db.get_completed_sessions.return_value = [
-            SessionRecord(
-                session_id=f"s{i}", agent_id="ad-hoc-agent",
-                started_at=utcnow(), ended_at=utcnow(), status="completed",
+            make_session(
+                agent_id="ad-hoc-agent", session_id=f"s{i}",
                 input_tokens=100, output_tokens=50, tool_call_count=2,
             ) for i in range(10)
         ]
@@ -69,9 +67,8 @@ class TestDriftDetectorAgentFallback:
         config = OcwConfig(version="1")
 
         detector = DriftDetector(db=db, alert_engine=alert_engine, config=config)
-        session = SessionRecord(
-            session_id="latest", agent_id="ad-hoc-agent",
-            started_at=utcnow(), ended_at=utcnow(), status="completed",
+        session = make_session(
+            agent_id="ad-hoc-agent", session_id="latest",
             input_tokens=100, output_tokens=50, tool_call_count=2,
         )
 
