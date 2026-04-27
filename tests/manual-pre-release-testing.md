@@ -21,8 +21,10 @@ git fetch origin
 git checkout <branch-name>
 
 # 3. Install locally (editable — uses local files, no pip publish needed)
-pip3 install -e ".[dev,mcp]"
+pip3 install -e ".[dev,mcp]" --force-reinstall
 ocw --version
+# Verify the installed `ocw` actually imports from the repo, not site-packages
+python3 -c "import ocw; print(ocw.__file__)"   # must point inside ~/openclawwatch
 
 # 4. Run automated tests first
 pytest tests/unit/ tests/synthetic/ tests/agents/ tests/integration/
@@ -191,16 +193,24 @@ cat ~/.codex/config.toml
 
 # Verify secret matches the running server
 SERVER_SECRET=$(grep ingest_secret ~/.config/ocw/config.toml | cut -d'"' -f2)
-CODEX_SECRET=$(grep -oE 'Authorization=Bearer [a-f0-9]+' ~/.codex/config.toml | cut -d' ' -f2)
+CODEX_SECRET=$(grep -oE 'Authorization=Bearer [^ "]+' ~/.codex/config.toml | cut -d' ' -f2)
 [ "$SERVER_SECRET" = "$CODEX_SECRET" ] && echo "ok: secret synced" || echo "FAIL: secret mismatch"
 
 # Verify skip-on-rerun (must have BOTH [otel] and [mcp_servers.ocw])
 ocw onboard --codex   # should print "already configured" / no-op
 
+# Stop the foreground `ocw serve` from the prereq before any --force flow,
+# so the daemon reinstall doesn't collide with the running server on port 7391.
+ocw stop
+
 # Verify cross-sync: re-onboarding Claude Code updates Codex config too
 ocw onboard --claude-code --force
 # After: ingest secret in ~/.claude/settings.json, ~/.codex/config.toml,
 #        and ~/.config/ocw/config.toml should all match.
+
+# Restart serve for the remaining checks below
+ocw serve &
+sleep 2
 
 # Drive a Codex session (if codex CLI installed) and verify ingestion
 codex exec "say hello"   # or any short codex command

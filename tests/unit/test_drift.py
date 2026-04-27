@@ -1,5 +1,9 @@
 """Unit tests for drift detection pure functions."""
-from ocw.core.drift import jaccard_similarity, z_score
+from unittest.mock import MagicMock
+
+from ocw.core.config import OcwConfig
+from ocw.core.drift import DriftDetector, jaccard_similarity, z_score
+from tests.factories import make_session
 
 
 class TestZScore:
@@ -43,3 +47,32 @@ class TestJaccardSimilarity:
         # intersection=2, union=3 => 2/3
         result = jaccard_similarity({"a", "b"}, {"a", "b", "c"})
         assert abs(result - 2 / 3) < 0.001
+
+
+class TestDriftDetectorAgentFallback:
+    """Drift detection should work for agents that aren't explicitly configured."""
+
+    def test_unconfigured_agent_builds_baseline(self):
+        db = MagicMock()
+        db.get_baseline.return_value = None
+        db.get_completed_session_count.return_value = 10
+        db.get_completed_sessions.return_value = [
+            make_session(
+                agent_id="ad-hoc-agent", session_id=f"s{i}",
+                input_tokens=100, output_tokens=50, tool_call_count=2,
+            ) for i in range(10)
+        ]
+        alert_engine = MagicMock()
+        # Empty config — no [agents.<id>] block for "ad-hoc-agent"
+        config = OcwConfig(version="1")
+
+        detector = DriftDetector(db=db, alert_engine=alert_engine, config=config)
+        session = make_session(
+            agent_id="ad-hoc-agent", session_id="latest",
+            input_tokens=100, output_tokens=50, tool_call_count=2,
+        )
+
+        detector.on_session_end("ad-hoc-agent", session)
+
+        # Baseline should have been built despite no agent config
+        assert db.upsert_baseline.called

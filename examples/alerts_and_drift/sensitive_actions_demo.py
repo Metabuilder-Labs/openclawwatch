@@ -6,26 +6,20 @@ submit_form). Shows how ocw detects and alerts on configured sensitive tools.
 
 No API keys required — uses simulated instrumentation.
 
-# --- Required ocw.toml config ---
-# Add this to your ocw.toml (or ~/.config/ocw/config.toml):
-#
-# [[agents]]
-# id = "sensitive-demo"
-#
-# [[agents.sensitive_actions]]
-# name = "send_email"
-# severity = "warning"
-#
-# [[agents.sensitive_actions]]
-# name = "delete_file"
-# severity = "critical"
-#
-# [[agents.sensitive_actions]]
-# name = "submit_form"
-# severity = "warning"
-#
-# [[alerts.channels]]
-# type = "stdout"
+The demo seeds its own [agents.sensitive-demo] block in the active ocw
+config on startup, so it works out of the box on a fresh `ocw onboard`.
+The injected config is equivalent to:
+
+    [agents.sensitive-demo]
+    [[agents.sensitive-demo.sensitive_actions]]
+    name = "send_email"
+    severity = "warning"
+    [[agents.sensitive-demo.sensitive_actions]]
+    name = "delete_file"
+    severity = "critical"
+    [[agents.sensitive-demo.sensitive_actions]]
+    name = "submit_form"
+    severity = "warning"
 """
 from __future__ import annotations
 
@@ -125,6 +119,18 @@ def run_sensitive_agent() -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    from examples.alerts_and_drift._shared import ensure_demo_agent_config
+    ensure_demo_agent_config(
+        "sensitive-demo",
+        {
+            "sensitive_actions": [
+                {"name": "send_email", "severity": "warning"},
+                {"name": "delete_file", "severity": "critical"},
+                {"name": "submit_form", "severity": "warning"},
+            ],
+        },
+    )
+
     from ocw.sdk.bootstrap import ensure_initialised
     ensure_initialised()
 

@@ -6,18 +6,13 @@ Shows how ocw tracks costs and fires budget alerts.
 
 No API keys required — uses simulated instrumentation.
 
-# --- Required ocw.toml config ---
-# Add this to your ocw.toml (or ~/.config/ocw/config.toml):
-#
-# [[agents]]
-# id = "budget-demo"
-#
-# [agents.budget]
-# daily_usd = 0.05
-# session_usd = 0.02
-#
-# [[alerts.channels]]
-# type = "stdout"
+The demo seeds its own [agents.budget-demo] block in the active ocw
+config on startup, so it works out of the box on a fresh `ocw onboard`.
+The injected config is equivalent to:
+
+    [agents.budget-demo.budget]
+    daily_usd = 0.05
+    session_usd = 0.02
 """
 from __future__ import annotations
 
@@ -81,6 +76,12 @@ def run_expensive_agent() -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    from examples.alerts_and_drift._shared import ensure_demo_agent_config
+    ensure_demo_agent_config(
+        "budget-demo",
+        {"budget": {"daily_usd": 0.05, "session_usd": 0.02}},
+    )
+
     from ocw.sdk.bootstrap import ensure_initialised
     ensure_initialised()
 

@@ -20,12 +20,10 @@ def cmd_serve(ctx: click.Context, host: str | None, port: int | None,
 
     import uvicorn
     from ocw.api.app import create_app
-    from ocw.core.ingest import IngestPipeline
-    from ocw.core.cost import CostEngine
+    from ocw.core.ingest import build_default_pipeline
 
     db = ctx.obj["db"]
-    cost_engine = CostEngine(db)
-    pipeline = IngestPipeline(db, config, cost_engine=cost_engine)
+    pipeline = build_default_pipeline(db, config)
     app = create_app(config, db, pipeline)
 
     # Schedule retention cleanup using a separate DB connection per run
