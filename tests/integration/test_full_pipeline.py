@@ -21,24 +21,24 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider, ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter, SpanExportResult
 
-from ocw.core.alerts import AlertEngine
-from ocw.core.config import (
+from tj.core.alerts import AlertEngine
+from tj.core.config import (
     AgentConfig,
     BudgetConfig,
     CaptureConfig,
     OcwConfig,
     SecurityConfig,
 )
-from ocw.core.cost import CostEngine
-from ocw.core.db import InMemoryBackend
-from ocw.core.ingest import IngestPipeline
-from ocw.core.models import AgentRecord, NormalizedSpan, SpanKind, SpanStatus
-from ocw.core.schema_validator import SchemaValidator
-from ocw.otel.provider import OcwSpanExporter
-from ocw.otel.semconv import GenAIAttributes
-from ocw.sdk.agent import watch, AgentSession, record_llm_call, record_tool_call
-from ocw.utils.time_parse import utcnow
-import ocw.sdk.agent as agent_mod
+from tj.core.cost import CostEngine
+from tj.core.db import InMemoryBackend
+from tj.core.ingest import IngestPipeline
+from tj.core.models import AgentRecord, NormalizedSpan, SpanKind, SpanStatus
+from tj.core.schema_validator import SchemaValidator
+from tj.otel.provider import OcwSpanExporter
+from tj.otel.semconv import GenAIAttributes
+from tj.sdk.agent import watch, AgentSession, record_llm_call, record_tool_call
+from tj.utils.time_parse import utcnow
+import tj.sdk.agent as agent_mod
 
 
 
@@ -136,7 +136,7 @@ def full_stack():
     # Create a local TracerProvider (not global) and bind the SDK tracer to it
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(ocw_exporter))
-    agent_mod._tracer = provider.get_tracer("ocw.sdk")
+    agent_mod._tracer = provider.get_tracer("tj.sdk")
 
     # Seed agent records
     now = utcnow()

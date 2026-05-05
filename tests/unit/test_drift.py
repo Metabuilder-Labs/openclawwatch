@@ -1,8 +1,8 @@
 """Unit tests for drift detection pure functions."""
 from unittest.mock import MagicMock
 
-from ocw.core.config import OcwConfig
-from ocw.core.drift import DriftDetector, jaccard_similarity, z_score
+from tj.core.config import OcwConfig
+from tj.core.drift import DriftDetector, jaccard_similarity, z_score
 from tests.factories import make_session
 
 
