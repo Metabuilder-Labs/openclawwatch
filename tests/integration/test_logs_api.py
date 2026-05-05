@@ -4,15 +4,15 @@ from __future__ import annotations
 import pytest
 import httpx
 
-from ocw.api.app import create_app
-from ocw.core.config import (
+from tj.api.app import create_app
+from tj.core.config import (
     ApiAuthConfig,
     ApiConfig,
     OcwConfig,
     SecurityConfig,
 )
-from ocw.core.db import InMemoryBackend
-from ocw.core.ingest import IngestPipeline
+from tj.core.db import InMemoryBackend
+from tj.core.ingest import IngestPipeline
 from tests.factories import (
     make_claude_code_api_error_log,
     make_claude_code_api_request_log,

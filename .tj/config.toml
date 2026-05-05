@@ -1,0 +1,27 @@
+# Token Juice configuration
+# Docs: https://github.com/Metabuilder-Labs/openclawwatch#configuration
+
+[defaults.budget]
+daily_usd = 5.0
+
+[security]
+ingest_secret = "97a1ae325c52f03da9907b08cc4782393ec0f7c741c590381be7b4bbb509508e"
+
+[capture]
+prompts = false
+completions = false
+tool_outputs = false
+
+[storage]
+path = "~/.tj/telemetry.duckdb"
+retention_days = 90
+
+# Per-agent overrides (optional):
+# [agents.my-agent]
+# description = "My email agent"
+#   [agents.my-agent.budget]
+#   daily_usd = 5.00
+#   session_usd = 1.00
+#   [[agents.my-agent.sensitive_actions]]
+#   name = "send_email"
+#   severity = "critical"

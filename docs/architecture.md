@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture of OpenClawWatch (ocw) — a local-first, OTel-native observability CLI for autonomous AI agents.
+This document describes the architecture of Token Juice (ocw) — a local-first, OTel-native observability CLI for autonomous AI agents.
 
 ## Design principles
 
@@ -22,7 +22,7 @@ flowchart TD
     ClaudeCode["Claude Code"]
 
     Agent --> PythonSDK["Python SDK\n@watch + patch_* integrations"]
-    Agent --> TypeScriptSDK["TypeScript SDK\n@openclawwatch/sdk"]
+    Agent --> TypeScriptSDK["TypeScript SDK\n@tokenjuice/sdk"]
     ClaudeCode --> Logs["POST /v1/logs\nOTLP log records"]
 
     PythonSDK --> Exporter["OcwSpanExporter"]
@@ -133,7 +133,7 @@ Migrations are `(version, sql)` tuples in a `MIGRATIONS` list. The migration run
 
 ### DuckDB single-writer constraint
 
-DuckDB allows only one write connection. When `ocw serve` is running, CLI commands detect the server and route queries through the REST API instead of opening DuckDB directly. This is handled by probing the API endpoint and injecting an `ApiBackend` if the server responds.
+DuckDB allows only one write connection. When `tj serve` is running, CLI commands detect the server and route queries through the REST API instead of opening DuckDB directly. This is handled by probing the API endpoint and injecting an `ApiBackend` if the server responds.
 
 ---
 
@@ -163,7 +163,7 @@ When both `patch_litellm()` and individual provider patches (e.g., `patch_openai
 
 Two integration strategies exist:
 - **Monkey-patching** (LangChain, LangGraph, CrewAI, AutoGen): wrap framework base class methods to create spans.
-- **Native OTel wrapping** (LlamaIndex, OpenAI Agents SDK): configure the framework's built-in OTel instrumentation to export to `ocw serve`. Simpler and more reliable.
+- **Native OTel wrapping** (LlamaIndex, OpenAI Agents SDK): configure the framework's built-in OTel instrumentation to export to `tj serve`. Simpler and more reliable.
 
 ---
 
@@ -256,7 +256,7 @@ A stub endpoint at `/v1/metrics` returns 200 OK to prevent noisy warnings from O
 
 ## Web UI
 
-A single-file SPA (`ocw/ui/index.html`) served by `ocw serve` at `http://127.0.0.1:7391/`. No build step, no node_modules — vanilla JS with Alpine.js from CDN.
+A single-file SPA (`ocw/ui/index.html`) served by `tj serve` at `http://127.0.0.1:7391/`. No build step, no node_modules — vanilla JS with Alpine.js from CDN.
 
 Six views: Status, Traces (with span waterfall visualization), Cost, Alerts, Budget, Drift. Hash-based routing (`/#/status`, `/#/traces`, etc.). The UI consumes the same REST API endpoints as external clients. All views auto-poll (Status at 5s, all others at 10s).
 
@@ -275,7 +275,7 @@ The span waterfall is the primary visualization — horizontal bars positioned o
 | Agents | `tests/agents/` | Mock agent scenarios, full SDK path | InMemoryBackend + OTel | Fast |
 | Integration | `tests/integration/` | CLI + API end-to-end | InMemoryBackend + HTTP | Fast |
 
-A fifth layer (`tests/e2e/`) makes real LLM API calls and is auto-skipped without `OCW_ANTHROPIC_API_KEY`.
+A fifth layer (`tests/e2e/`) makes real LLM API calls and is auto-skipped without `TJ_ANTHROPIC_API_KEY`.
 
 ### Test infrastructure
 
@@ -295,7 +295,7 @@ A fifth layer (`tests/e2e/`) makes real LLM API calls and is auto-skipped withou
 
 ## Configuration
 
-Config is TOML, discovered in order: `ocw.toml` → `.ocw/config.toml` → `~/.config/ocw/config.toml`. Override with `--config` flag or `OCW_CONFIG` env var.
+Config is TOML, discovered in order: `tj.toml` → `.tj/config.toml` → `~/.config/tj/config.toml`. Override with `--config` flag or `TJ_CONFIG` env var.
 
 The `OcwConfig` dataclass tree in `ocw/core/config.py` defines the full hierarchy: agents (with budgets, sensitive actions, drift config, output schema), storage, export (OTLP, Prometheus), alerts (cooldown, channels), security, API, and capture settings.
 
@@ -305,17 +305,17 @@ The `OcwConfig` dataclass tree in `ocw/core/config.py` defines the full hierarch
 
 ## MCP server (Claude Code integration)
 
-`ocw mcp` is a stdio-based MCP (Model Context Protocol) server that gives Claude Code direct access to OCW observability data. It exposes 13 tools that Claude Code can call during a session.
+`tj mcp` is a stdio-based MCP (Model Context Protocol) server that gives Claude Code direct access to OCW observability data. It exposes 13 tools that Claude Code can call during a session.
 
 ### Dual-mode operation
 
 The MCP server operates in one of two modes, chosen automatically at startup:
 
-1. **HTTP proxy mode** (when `ocw serve` is running): Routes all queries through the REST API via an `_HttpDB` wrapper. Enables write operations (e.g., `acknowledge_alert`) without DuckDB lock conflicts.
+1. **HTTP proxy mode** (when `tj serve` is running): Routes all queries through the REST API via an `_HttpDB` wrapper. Enables write operations (e.g., `acknowledge_alert`) without DuckDB lock conflicts.
 
 2. **Read-only DuckDB mode** (fallback): Opens the DuckDB file in `read_only=True` mode. All 12 read tools work directly against the database. Slightly faster, but no write operations.
 
-If `ocw serve` is not running, `cmd_mcp.py` can auto-start it as a detached subprocess before switching to HTTP mode.
+If `tj serve` is not running, `cmd_mcp.py` can auto-start it as a detached subprocess before switching to HTTP mode.
 
 ### Tool inventory
 
@@ -333,7 +333,7 @@ If `ocw serve` is not running, `cmd_mcp.py` can auto-start it as a detached subp
 | `get_drift_report` | Behavioral drift baseline vs latest session |
 | `acknowledge_alert` | Mark alerts as acknowledged (only write operation) |
 | `setup_project` | Configure project telemetry tagging |
-| `open_dashboard` | Start `ocw serve` and open the web UI |
+| `open_dashboard` | Start `tj serve` and open the web UI |
 
 ### Acknowledge alert — write path
 
@@ -343,16 +343,16 @@ If `ocw serve` is not running, `cmd_mcp.py` can auto-start it as a detached subp
 
 ## Claude Code telemetry pipeline
 
-### Onboard flow (`ocw onboard --claude-code`)
+### Onboard flow (`tj onboard --claude-code`)
 
 The `--claude-code` flag configures the full telemetry pipeline in one command:
 
 1. **Derives agent ID** from the git remote origin name (fallback: folder name), prefixed with `claude-code-`
-2. **Writes OCW config** to `~/.config/ocw/config.toml` (global, shared across all projects) with agent entry and optional daily budget
+2. **Writes OCW config** to `~/.config/tj/config.toml` (global, shared across all projects) with agent entry and optional daily budget
 3. **Updates global Claude settings** (`~/.claude/settings.json`) with OTLP exporter env vars: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, endpoint, protocol. On re-runs, always resyncs the `OTEL_EXPORTER_OTLP_HEADERS` auth header to fix 401s without manual setup.
 4. **Writes project settings** (`./.claude/settings.json`) with `OTEL_RESOURCE_ATTRIBUTES=service.name={agent_id}` so spans are tagged to the right agent
 5. **Updates shell env** (`~/.zshrc`) with Docker-compatible endpoint (`host.docker.internal:{port}`) for harness sessions that can't reach `127.0.0.1`
-6. **Registers MCP server** globally via `claude mcp add --scope user ocw -- ocw mcp`
+6. **Registers MCP server** globally via `claude mcp add --scope user tj -- tj mcp`
 7. **Installs daemon** by default (launchd on macOS, systemd on Linux) with `--config` baked into the unit file; skip with `--no-daemon`
 
 ### Log-to-span conversion
@@ -379,7 +379,7 @@ The converted spans flow through the standard `IngestPipeline.process()` path �
 
 ## Budget system
 
-### CLI (`ocw budget`)
+### CLI (`tj budget`)
 
 - **Read mode**: displays a table with Scope, Daily, and Session columns for all agents, showing both configured and effective (fallback-applied) values
 - **Write mode** (`--agent NAME --daily 5.00 --session 1.00`): updates config on disk, creates agent entry if needed
@@ -402,7 +402,7 @@ This allows per-agent overrides on one field while using defaults for the other.
 
 ---
 
-## Drift CLI (`ocw drift`)
+## Drift CLI (`tj drift`)
 
 Displays behavioral drift baselines and Z-score analysis per agent in a Rich table. For each agent with a computed baseline, it compares the latest completed session against the baseline across five dimensions: input tokens, output tokens, session duration, tool call count, and tool sequence similarity (Jaccard).
 
@@ -412,8 +412,8 @@ Z-scores are color-coded: green (|z| < 1.0), yellow (approaching threshold), red
 
 ## Packaging
 
-- **PyPI package name:** `openclawwatch` (not `ocw`)
+- **PyPI package name:** `tokenjuice` (not `ocw`)
 - **CLI command:** `ocw`
 - **Python package directory:** `ocw/`
 - **Build system:** hatchling, with `[tool.hatch.build.targets.wheel] packages = ["ocw"]` because the package name differs from the directory name
-- **npm package:** `@openclawwatch/sdk` under `sdk-ts/`
+- **npm package:** `@tokenjuice/sdk` under `sdk-ts/`

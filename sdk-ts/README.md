@@ -1,6 +1,6 @@
-# @openclawwatch/sdk
+# @tokenjuice/sdk
 
-TypeScript SDK for [OpenClawWatch](https://github.com/Metabuilder-Labs/openclawwatch) — local-first, OTel-native observability for AI agents.
+TypeScript SDK for [Token Juice](https://github.com/Metabuilder-Labs/tokenjuice) — local-first, OTel-native observability for AI agents.
 
 Communicates with a running `ocw serve` instance via HTTP. No in-process OTel pipeline — spans are built with `SpanBuilder` and sent by `OcwClient`.
 
@@ -9,20 +9,20 @@ Communicates with a running `ocw serve` instance via HTTP. No in-process OTel pi
 ## Install
 
 ```bash
-npm install @openclawwatch/sdk
+npm install @tokenjuice/sdk
 ```
 
 Requires Node.js >= 18. Start the OCW server before sending spans:
 
 ```bash
-pip install openclawwatch
+pip install tokenjuice
 ocw serve
 ```
 
 ## Quick start
 
 ```typescript
-import { OcwClient, SpanBuilder, SpanStatus } from "@openclawwatch/sdk";
+import { OcwClient, SpanBuilder, SpanStatus } from "@tokenjuice/sdk";
 
 const client = new OcwClient({
   ingestSecret: "your-ingest-secret",   // from ocw.toml security.ingest_secret
@@ -127,7 +127,7 @@ new SpanBuilder(name: string)
 ## Semantic convention constants
 
 ```typescript
-import { GenAIAttributes, OcwAttributes, ClaudeCodeEvents } from "@openclawwatch/sdk";
+import { GenAIAttributes, OcwAttributes, ClaudeCodeEvents } from "@tokenjuice/sdk";
 
 // GenAI attribute name strings
 GenAIAttributes.AGENT_ID           // "gen_ai.agent.id"
@@ -153,7 +153,7 @@ Use `ClaudeCodeEvents` when writing agents that consume Claude Code's own OTel l
 ## SpanKind and SpanStatus
 
 ```typescript
-import { SpanKind, SpanStatus } from "@openclawwatch/sdk";
+import { SpanKind, SpanStatus } from "@tokenjuice/sdk";
 
 SpanKind.CLIENT   // default for LLM calls
 SpanKind.SERVER
@@ -168,11 +168,11 @@ SpanStatus.UNSET
 
 ## What this SDK does NOT provide
 
-Unlike the Python SDK (`pip install openclawwatch`), this package does **not** include:
+Unlike the Python SDK (`pip install tokenjuice`), this package does **not** include:
 
 - **Session management** (`@watch()` decorator / `AgentSession` context manager) — you must manually build and send `invoke_agent` session spans.
 - **Provider auto-instrumentation** — no `patchAnthropic()`, `patchOpenAI()`, etc. Every LLM call requires an explicit `SpanBuilder`.
 - **Framework patches** — no LangChain JS, OpenAI Agents SDK, or Vercel AI SDK integration.
 - **In-process OTel pipeline** — all telemetry goes over HTTP to `ocw serve`.
 
-See the [Python SDK docs](https://github.com/Metabuilder-Labs/openclawwatch#python-sdk) for the full-featured in-process instrumentation path.
+See the [Python SDK docs](https://github.com/Metabuilder-Labs/tokenjuice#python-sdk) for the full-featured in-process instrumentation path.

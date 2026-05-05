@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import MagicMock
 
-from ocw.core.alerts import (
+from tj.core.alerts import (
     AlertDispatcher,
     AlertEngine,
     FileChannel,
@@ -14,7 +14,7 @@ from ocw.core.alerts import (
     _strip_sensitive,
     SENSITIVE_DETAIL_KEYS,
 )
-from ocw.core.config import (
+from tj.core.config import (
     AgentConfig,
     AlertChannelConfig,
     AlertsConfig,
@@ -23,10 +23,10 @@ from ocw.core.config import (
     OcwConfig,
     SensitiveAction,
 )
-from ocw.core.models import Alert, AlertType, Severity, SpanStatus
-from ocw.otel.semconv import OcwAttributes
-from ocw.utils.ids import new_uuid
-from ocw.utils.time_parse import utcnow
+from tj.core.models import Alert, AlertType, Severity, SpanStatus
+from tj.otel.semconv import OcwAttributes
+from tj.utils.ids import new_uuid
+from tj.utils.time_parse import utcnow
 from tests.factories import make_llm_span, make_session, make_tool_span
 
 
